@@ -134,7 +134,7 @@ This is a focused drill: every question must probe "${ctx.focusCompetency}" from
 and each question's competency must be "${ctx.focusCompetency}".`;
   }
   const out = await llm.structured<InterviewPlan>(INTERVIEWER, user, planTool(ctx));
-  return { role: (out.role ?? "").trim() || "General practice", questions: (out.questions ?? []).slice(0, count) };
+  return normalizePlan(out, ctx, count);
 }
 
 export async function followUp(llm: LLM, ctx: Context, exchange: Exchange): Promise<string> {
@@ -152,7 +152,7 @@ candidate's own role. Reply with the question only.`;
   return llm.text(INTERVIEWER, user, 300);
 }
 
-const score = { type: "integer", minimum: 1, maximum: 5 };
+const scoreSchema = { type: "integer", minimum: 1, maximum: 5 };
 
 const FEEDBACK_TOOL: ToolSpec = {
   name: "answer_feedback",
@@ -164,10 +164,10 @@ const FEEDBACK_TOOL: ToolSpec = {
         type: "object",
         description: "1 = poor, 3 = acceptable, 5 = excellent.",
         properties: {
-          structure: { ...score, description: "Clear arc: situation, action, result (or problem, approach, trade-offs)." },
-          specificity: { ...score, description: "Concrete details, numbers, and the candidate's own actions." },
-          relevance: { ...score, description: "Answers the question asked and fits the role." },
-          concision: { ...score, description: "No rambling, repetition, or preamble." },
+          structure: { ...scoreSchema, description: "Clear arc: situation, action, result (or problem, approach, trade-offs)." },
+          specificity: { ...scoreSchema, description: "Concrete details, numbers, and the candidate's own actions." },
+          relevance: { ...scoreSchema, description: "Answers the question asked and fits the role." },
+          concision: { ...scoreSchema, description: "No rambling, repetition, or preamble." },
         },
         required: ["structure", "specificity", "relevance", "concision"],
       },
@@ -230,7 +230,7 @@ It was told to fix: ${previous.feedback.fix?.headline ?? previous.feedback.impro
 Score the new answer on its own merits with the same standard, and fill in "changes" by comparing
 the two attempts. Choose a different "fix" if the earlier one has been addressed.`;
   }
-  return llm.structured<Feedback>(COACH, user, FEEDBACK_TOOL, 2500);
+  return normalizeFeedback(await llm.structured<unknown>(COACH, user, FEEDBACK_TOOL, 2500));
 }
 
 export async function buildStories(llm: LLM, resume: string, jobDescription?: string): Promise<string> {
@@ -251,6 +251,60 @@ Choose stories that together cover ownership, conflict, failure, ambiguity, infl
 technical depth${jobDescription ? ", weighted toward what the job description asks for" : ""}.
 End with a table mapping common questions to the best story for each. Do not invent facts.`;
   return llm.text(COACH, user, 4000);
+}
+
+// Smaller models do not always follow a schema exactly, so model output is
+// coerced into shape here instead of being trusted.
+
+const text = (x: unknown): string => (typeof x === "string" ? x.trim() : "");
+
+function list(x: unknown, max: number): string[] {
+  const items = Array.isArray(x) ? x : typeof x === "string" && x.trim() ? [x] : [];
+  return items.map(text).filter(Boolean).slice(0, max);
+}
+
+function score(x: unknown): number {
+  const n = Math.round(Number(x));
+  return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 3;
+}
+
+export function normalizeFeedback(raw: unknown): Feedback {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const s = (r.scores && typeof r.scores === "object" ? r.scores : {}) as Record<string, unknown>;
+  const f = (r.fix && typeof r.fix === "object" ? r.fix : {}) as Record<string, unknown>;
+  const improvements = list(r.improvements, 3);
+  const headline = text(f.headline) || improvements[0] || "";
+  const changes = list(r.changes, 3);
+  return {
+    scores: {
+      structure: score(s.structure),
+      specificity: score(s.specificity),
+      relevance: score(s.relevance),
+      concision: score(s.concision),
+    },
+    strengths: list(r.strengths, 3),
+    improvements,
+    rewrite: text(r.rewrite),
+    ...(headline ? { fix: { headline, detail: text(f.detail), ...(text(f.quote) ? { quote: text(f.quote) } : {}) } } : {}),
+    ...(changes.length ? { changes } : {}),
+  };
+}
+
+export function normalizePlan(raw: unknown, ctx: Context, count: number): InterviewPlan {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const allowed = COMPETENCIES[ctx.type];
+  const questions = (Array.isArray(r.questions) ? r.questions : [])
+    .map((q): PlannedQuestion | null => {
+      const item = (q && typeof q === "object" ? q : {}) as Record<string, unknown>;
+      const question = text(item.question);
+      if (!question) return null;
+      const named = text(item.competency).toLowerCase();
+      const competency = ctx.focusCompetency ?? (allowed.includes(named) ? named : named || "general");
+      return { question, competency, ...(text(item.story) ? { story: text(item.story) } : {}) };
+    })
+    .filter((q): q is PlannedQuestion => q !== null)
+    .slice(0, count);
+  return { role: text(r.role) || "General practice", questions };
 }
 
 export function averageScore(f: Feedback): number {

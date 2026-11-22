@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { OpenAICompatLLM } from "./openai.js";
 
 export type { LLM, ToolSpec } from "./types.js";
 import type { LLM, ToolSpec } from "./types.js";
@@ -51,4 +52,16 @@ export class AnthropicLLM implements LLM {
     }
     return block.input as T;
   }
+}
+
+/**
+ * Picks the model backend from the environment: any OpenAI-compatible API when
+ * COACH_BASE_URL is set (Groq, OpenRouter, Ollama, ...), otherwise Claude.
+ */
+export function createLLM(): LLM {
+  const baseUrl = process.env.COACH_BASE_URL;
+  if (!baseUrl) return new AnthropicLLM();
+  const model = process.env.COACH_MODEL;
+  if (!model) throw new Error("Set COACH_MODEL to the model name to use with COACH_BASE_URL.");
+  return new OpenAICompatLLM({ baseUrl, apiKey: process.env.COACH_API_KEY, model });
 }

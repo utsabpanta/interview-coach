@@ -309,6 +309,7 @@ button:disabled {
   font-weight: 600;
 }
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   background: var(--bg);
@@ -326,6 +327,17 @@ button:disabled {
 .hint {
   font-size: 14px;
   color: var(--muted);
+}
+.hint code {
+  font-size: 13px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.row.nowrap {
+  flex-wrap: nowrap;
+}
+.row.nowrap input {
+  min-width: 0;
 }
 
 .notice {

@@ -2,7 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import { planInterview } from "../../src/coach.js";
 import type { LLM } from "../../src/types.js";
 import { SettingsDialog } from "./components.js";
-import { BrowserLLM, explainError } from "./lib/llm.js";
+import { explainError } from "./lib/llm.js";
+import { makeLLM, missing } from "./lib/providers.js";
 import { MockLLM } from "./lib/mockLlm.js";
 import { answered, previousReadiness, summarize } from "./lib/score.js";
 import { loadHistory, loadSettings, saveSettings, saveToHistory } from "./lib/store.js";
@@ -32,10 +33,7 @@ export function App() {
   const [dialog, setDialog] = useState<{ reason?: string; pending?: Setup } | null>(null);
   const [previous, setPrevious] = useState<number | null>(null);
 
-  const llm = useMemo<LLM | null>(
-    () => (MOCK ? new MockLLM() : settings.apiKey ? new BrowserLLM(settings.apiKey, settings.model) : null),
-    [settings.apiKey, settings.model],
-  );
+  const llm = useMemo<LLM | null>(() => (MOCK ? new MockLLM() : makeLLM(settings)), [settings]);
 
   const begin = useCallback(
     async (model: LLM, setup: Setup, drill?: string) => {
@@ -80,7 +78,7 @@ export function App() {
 
   const start = (setup: Setup) => {
     if (!llm) {
-      setDialog({ reason: "Add your Anthropic API key to start. It stays in this browser.", pending: setup });
+      setDialog({ reason: missing(settings) ?? undefined, pending: setup });
       return;
     }
     void begin(llm, setup);
@@ -91,7 +89,8 @@ export function App() {
     saveSettings(next);
     const pending = dialog?.pending;
     setDialog(null);
-    if (pending && next.apiKey) void begin(new BrowserLLM(next.apiKey, next.model), pending);
+    const model = makeLLM(next);
+    if (pending && model) void begin(model, pending);
   };
 
   const finish = (current: Session) => {

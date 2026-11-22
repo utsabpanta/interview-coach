@@ -46,13 +46,13 @@ export class BrowserLLM implements LLM {
 /** Turns an API failure into a sentence a visitor can act on. */
 export function explainError(err: unknown): string {
   const status = (err as { status?: number })?.status;
-  if (status === 401) return "Anthropic rejected the API key. Check it in Settings.";
+  const detail = err instanceof Error ? err.message : "";
+  if (status === 401) return "The model provider rejected the API key. Check it in Settings.";
   if (status === 403) return "This API key is not allowed to use the selected model. Check the key or the model in Settings.";
-  if (status === 404) return "Anthropic does not recognize the model name. Change it in Settings.";
-  if (status === 429) return "Anthropic is rate-limiting this key. Wait a moment and try again.";
-  if (status && status >= 500) return "Anthropic's API had a problem. Try again in a moment.";
-  if (err instanceof Error && /fetch|network|connection/i.test(err.message)) {
-    return "Could not reach Anthropic. Check your connection and try again.";
-  }
-  return err instanceof Error ? err.message : "Something went wrong. Try again.";
+  if (status === 404) return "The model provider does not recognize the model name. Pick another in Settings.";
+  if (status === 429) return "The model provider's rate limit or daily free quota was reached. Wait a while, or switch provider in Settings.";
+  if (status && status >= 500) return "The model provider had a problem. Try again in a moment.";
+  if (/could not reach/i.test(detail)) return `${detail} Check the address and your connection; for a local server, see the setup note in Settings.`;
+  if (/fetch|network|connection/i.test(detail)) return "Could not reach the model provider. Check your connection and try again.";
+  return detail || "Something went wrong. Try again.";
 }

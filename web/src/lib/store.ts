@@ -1,3 +1,4 @@
+import { PROVIDERS } from "./providers.js";
 import type { SessionSummary, Settings } from "./types.js";
 
 /**
@@ -10,8 +11,10 @@ const HISTORY_KEY = "callback.history.v1";
 const HISTORY_LIMIT = 100;
 
 export const DEFAULT_SETTINGS: Settings = {
-  apiKey: "",
-  model: "claude-sonnet-5-5",
+  provider: "groq",
+  keys: {},
+  models: {},
+  baseUrls: {},
   speakQuestions: true,
   followUps: true,
 };
@@ -33,8 +36,29 @@ function write(key: string, value: unknown): void {
   }
 }
 
+/** Settings from before providers existed held a single Anthropic key and model. */
+interface LegacySettings {
+  apiKey?: string;
+  model?: string;
+}
+
 export function loadSettings(): Settings {
-  return { ...DEFAULT_SETTINGS, ...(read<Partial<Settings>>(SETTINGS_KEY) ?? {}) };
+  const saved = read<Partial<Settings> & LegacySettings>(SETTINGS_KEY) ?? {};
+  const { apiKey, model, ...rest } = saved;
+  const settings: Settings = {
+    ...DEFAULT_SETTINGS,
+    ...rest,
+    keys: { ...(rest.keys ?? {}) },
+    models: { ...(rest.models ?? {}) },
+    baseUrls: { ...(rest.baseUrls ?? {}) },
+  };
+  if (apiKey && !rest.provider) {
+    settings.provider = "anthropic";
+    settings.keys.anthropic = apiKey;
+    if (model) settings.models.anthropic = model;
+  }
+  if (!(settings.provider in PROVIDERS)) settings.provider = DEFAULT_SETTINGS.provider;
+  return settings;
 }
 
 export function saveSettings(settings: Settings): void {

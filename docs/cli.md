@@ -147,8 +147,10 @@ practice presenting it with `coach voice`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | none | Required for everything except `progress` and `voice --pacing-only`. |
+| `ANTHROPIC_API_KEY` | none | Required unless `COACH_BASE_URL` is set, except for `progress` and `voice --pacing-only`. |
 | `COACH_MODEL` | `claude-sonnet-5-5` | Which Claude model to use. |
+| `COACH_BASE_URL` | none | Use an OpenAI-compatible API instead of Claude, for example `https://api.groq.com/openai/v1` or `http://localhost:11434/v1` for Ollama. Requires `COACH_MODEL`. |
+| `COACH_API_KEY` | none | The key for `COACH_BASE_URL`, if that server needs one. |
 | `OPENAI_API_KEY` | none | For `voice`, when using OpenAI's transcription API. |
 | `COACH_TRANSCRIBE_URL` | OpenAI's endpoint | Any OpenAI-compatible `/audio/transcriptions` endpoint. |
 | `COACH_TRANSCRIBE_MODEL` | `whisper-1` | Transcription model name sent to that endpoint. |

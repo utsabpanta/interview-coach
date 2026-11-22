@@ -1,0 +1,152 @@
+import { describe, expect, it } from "vitest";
+import { normalizeFeedback, normalizePlan } from "../src/coach.js";
+import { extractJson, listModels, OpenAICompatLLM, ProviderError, stripThinking } from "../src/openai.js";
+
+const TOOL = { name: "answer_feedback", description: "Record feedback.", schema: { type: "object" } };
+
+interface Call {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, any>;
+}
+
+/** A fetch stand-in that replays canned responses and records what was sent. */
+function fakeFetch(responses: Array<{ status?: number; json: unknown }>) {
+  const calls: Call[] = [];
+  const impl = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({
+      url: String(url),
+      headers: (init?.headers ?? {}) as Record<string, string>,
+      body: init?.body ? JSON.parse(String(init.body)) : {},
+    });
+    const next = responses[Math.min(calls.length - 1, responses.length - 1)];
+    return new Response(JSON.stringify(next.json), { status: next.status ?? 200 });
+  }) as typeof fetch;
+  return { impl, calls };
+}
+
+const reply = (message: Record<string, unknown>) => ({ json: { choices: [{ message }] } });
+
+describe("OpenAICompatLLM", () => {
+  it("sends a chat request and strips model reasoning from text", async () => {
+    const { impl, calls } = fakeFetch([reply({ content: "<think>hmm</think>\nWhat was your role?" })]);
+    const llm = new OpenAICompatLLM({ baseUrl: "https://api.example.com/v1/", apiKey: "k", model: "m", fetchImpl: impl });
+
+    expect(await llm.text("sys", "user", 300)).toBe("What was your role?");
+    expect(calls[0].url).toBe("https://api.example.com/v1/chat/completions");
+    expect(calls[0].headers.Authorization).toBe("Bearer k");
+    expect(calls[0].body).toMatchObject({ model: "m", max_tokens: 2000, messages: [{ role: "system", content: "sys" }, { role: "user", content: "user" }] });
+  });
+
+  it("omits the Authorization header without a key", async () => {
+    const { impl, calls } = fakeFetch([reply({ content: "ok" })]);
+    await new OpenAICompatLLM({ baseUrl: "http://localhost:11434/v1", model: "m", fetchImpl: impl }).text("s", "u");
+    expect(calls[0].headers.Authorization).toBeUndefined();
+  });
+
+  it("reads structured output from a forced tool call", async () => {
+    const { impl, calls } = fakeFetch([reply({ tool_calls: [{ function: { arguments: '{"a":1}' } }] })]);
+    const llm = new OpenAICompatLLM({ baseUrl: "https://x/v1", model: "m", fetchImpl: impl });
+
+    expect(await llm.structured("s", "u", TOOL)).toEqual({ a: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.tool_choice).toEqual({ type: "function", function: { name: "answer_feedback" } });
+    expect(calls[0].body.tools[0].function.parameters).toEqual({ type: "object" });
+  });
+
+  it("accepts JSON in the message when the model ignores the tool", async () => {
+    const { impl, calls } = fakeFetch([reply({ content: 'Sure!\n```json\n{"a": 2}\n```' })]);
+    expect(await new OpenAICompatLLM({ baseUrl: "https://x/v1", model: "m", fetchImpl: impl }).structured("s", "u", TOOL)).toEqual({ a: 2 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("falls back to a plain JSON request when tools are unsupported", async () => {
+    const { impl, calls } = fakeFetch([
+      { status: 400, json: { error: { message: "model does not support tools" } } },
+      reply({ content: '{"a":3}' }),
+    ]);
+    expect(await new OpenAICompatLLM({ baseUrl: "https://x/v1", model: "m", fetchImpl: impl }).structured("s", "u", TOOL)).toEqual({ a: 3 });
+    expect(calls).toHaveLength(2);
+    expect(calls[1].body.tools).toBeUndefined();
+    expect(calls[1].body.messages[1].content).toContain('{"type":"object"}');
+  });
+
+  it("does not retry on authentication or rate-limit errors", async () => {
+    for (const status of [401, 429]) {
+      const { impl, calls } = fakeFetch([{ status, json: { error: { message: "nope" } } }]);
+      const llm = new OpenAICompatLLM({ baseUrl: "https://x/v1", model: "m", fetchImpl: impl });
+      await expect(llm.structured("s", "u", TOOL)).rejects.toMatchObject({ status, message: "nope" });
+      expect(calls).toHaveLength(1);
+    }
+  });
+
+  it("reports an unreachable server by address", async () => {
+    const impl = (async () => {
+      throw new TypeError("fetch failed");
+    }) as typeof fetch;
+    const llm = new OpenAICompatLLM({ baseUrl: "http://localhost:11434/v1", model: "m", fetchImpl: impl });
+    await expect(llm.text("s", "u")).rejects.toThrow("Could not reach the model provider at http://localhost:11434/v1.");
+  });
+
+  it("lists models", async () => {
+    const { impl, calls } = fakeFetch([{ json: { data: [{ id: "zeta" }, { id: "models/alpha" }, {}] } }]);
+    expect(await listModels({ baseUrl: "https://x/v1", apiKey: "k", fetchImpl: impl })).toEqual(["alpha", "zeta"]);
+    expect(calls[0].url).toBe("https://x/v1/models");
+  });
+});
+
+describe("extractJson", () => {
+  it("handles fences, prose, and reasoning tags", () => {
+    expect(extractJson('<think>{"no":1}</think> Here: {"yes": {"n": 1}} done')).toEqual({ yes: { n: 1 } });
+    expect(stripThinking("<think>a</think>b")).toBe("b");
+  });
+
+  it("rejects replies without valid JSON", () => {
+    expect(() => extractJson("no json here")).toThrow(ProviderError);
+    expect(() => extractJson("{broken")).toThrow(ProviderError);
+    expect(() => extractJson("{'a': 1}")).toThrow(/malformed/);
+  });
+});
+
+describe("normalizing model output", () => {
+  it("coerces sloppy feedback into shape", () => {
+    const f = normalizeFeedback({
+      scores: { structure: "4", specificity: 9, relevance: 0, concision: "great" },
+      strengths: "Clear opening.",
+      improvements: ["Add a number.", "", 7, "Name your role.", "Cut the intro.", "A fourth."],
+      rewrite: 42,
+      fix: { detail: "Because." },
+    });
+    expect(f.scores).toEqual({ structure: 4, specificity: 5, relevance: 1, concision: 3 });
+    expect(f.strengths).toEqual(["Clear opening."]);
+    expect(f.improvements).toEqual(["Add a number.", "Name your role.", "Cut the intro."]);
+    expect(f.rewrite).toBe("");
+    // With no headline, the top improvement becomes the fix.
+    expect(f.fix).toEqual({ headline: "Add a number.", detail: "Because." });
+    expect(f.changes).toBeUndefined();
+  });
+
+  it("survives a completely wrong reply", () => {
+    const f = normalizeFeedback("not an object");
+    expect(f.scores).toEqual({ structure: 3, specificity: 3, relevance: 3, concision: 3 });
+    expect(f.fix).toBeUndefined();
+  });
+
+  it("cleans up a plan", () => {
+    const plan = normalizePlan(
+      { role: "  ", questions: [{ question: " Q1? ", competency: "Conflict" }, { question: "" }, { question: "Q2?", competency: "grit" }, { question: "Q3?" }, "junk"] },
+      { type: "behavioral" },
+      3,
+    );
+    expect(plan).toEqual({
+      role: "General practice",
+      questions: [
+        { question: "Q1?", competency: "conflict" },
+        { question: "Q2?", competency: "grit" },
+        { question: "Q3?", competency: "general" },
+      ],
+    });
+    expect(normalizePlan({ questions: [{ question: "Q?", competency: "x" }] }, { type: "behavioral", focusCompetency: "failure" }, 5).questions[0].competency).toBe("failure");
+    expect(normalizePlan(null, { type: "technical" }, 5)).toEqual({ role: "General practice", questions: [] });
+  });
+});

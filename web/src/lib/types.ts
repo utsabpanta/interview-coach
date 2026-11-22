@@ -47,9 +47,14 @@ export interface SessionSummary {
   skills: Array<{ competency: string; score: number }>;
 }
 
+export type ProviderId = "groq" | "gemini" | "openrouter" | "ollama" | "anthropic" | "custom";
+
 export interface Settings {
-  apiKey: string;
-  model: string;
+  provider: ProviderId;
+  /** Per provider, so switching back does not lose a key. */
+  keys: Partial<Record<ProviderId, string>>;
+  models: Partial<Record<ProviderId, string>>;
+  baseUrls: Partial<Record<ProviderId, string>>;
   speakQuestions: boolean;
   followUps: boolean;
 }

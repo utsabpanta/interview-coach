@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { Settings } from "./lib/types.js";
+import { listModels } from "../../src/openai.js";
+import { explainError } from "./lib/llm.js";
+import { activeBaseUrl, activeKey, missing, PROVIDER_IDS, PROVIDERS } from "./lib/providers.js";
+import type { ProviderId, Settings } from "./lib/types.js";
 
 const stroke = { fill: "none", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
@@ -110,7 +113,15 @@ export function SettingsDialog({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(settings);
-  const first = useRef<HTMLInputElement>(null);
+  const [models, setModels] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadNote, setLoadNote] = useState<string | null>(null);
+  const first = useRef<HTMLSelectElement>(null);
+
+  const id = draft.provider;
+  const provider = PROVIDERS[id];
+  const isAnthropic = id === "anthropic";
+  const editableUrl = id === "custom" || id === "ollama";
 
   useEffect(() => {
     first.current?.focus();
@@ -119,42 +130,133 @@ export function SettingsDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const setProvider = (next: ProviderId) => {
+    setDraft({ ...draft, provider: next });
+    setModels([]);
+    setLoadNote(null);
+  };
+
+  const loadModels = async () => {
+    setLoading(true);
+    setLoadNote(null);
+    try {
+      const found = await listModels({ baseUrl: activeBaseUrl(draft), apiKey: activeKey(draft) || undefined });
+      setModels(found);
+      setLoadNote(found.length ? `Connected. ${found.length} models available; pick one from the list.` : "Connected, but the server listed no models.");
+    } catch (err) {
+      setModels([]);
+      setLoadNote(explainError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    onSave({ ...draft, apiKey: draft.apiKey.trim(), model: draft.model.trim() || settings.model });
+    onSave(draft);
   };
 
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" onSubmit={submit}>
         <h2 id="settings-title">Settings</h2>
-        {reason ? <p className="notice">{reason}</p> : null}
+        {reason && missing(draft) ? <p className="notice">{missing(draft)}</p> : null}
 
         <div className="field">
-          <label htmlFor="api-key">Anthropic API key</label>
-          <input
-            id="api-key"
-            ref={first}
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="sk-ant-..."
-            value={draft.apiKey}
-            onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-          />
-          <p className="hint">
-            Stored only in this browser and sent only to Anthropic. There is no Callback server. Create a key at{" "}
-            <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer">
-              console.anthropic.com
-            </a>
-            .
-          </p>
+          <label htmlFor="provider">Model provider</label>
+          <select id="provider" ref={first} value={id} onChange={(e) => setProvider(e.target.value as ProviderId)}>
+            {PROVIDER_IDS.map((p) => (
+              <option key={p} value={p}>
+                {PROVIDERS[p].label} ({PROVIDERS[p].tag})
+              </option>
+            ))}
+          </select>
+          <p className="hint">{provider.note}</p>
         </div>
+
+        {editableUrl ? (
+          <div className="field">
+            <label htmlFor="base-url">Server address</label>
+            <input
+              id="base-url"
+              type="url"
+              spellCheck={false}
+              placeholder={provider.baseUrl || "https://example.com/v1"}
+              value={draft.baseUrls[id] ?? ""}
+              onChange={(e) => setDraft({ ...draft, baseUrls: { ...draft.baseUrls, [id]: e.target.value } })}
+            />
+            {id === "ollama" ? (
+              <p className="hint">
+                Ollama must allow this site. Start it with <code>OLLAMA_ORIGINS={window.location.origin} ollama serve</code>, and pull a model
+                first, for example <code>ollama pull llama3.2</code>.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {provider.needsKey || id === "custom" ? (
+          <div className="field">
+            <label htmlFor="api-key">
+              {provider.label.replace(/ \(.*/, "")} API key{provider.needsKey ? "" : " (if the server needs one)"}
+            </label>
+            <input
+              id="api-key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={draft.keys[id] ?? ""}
+              onChange={(e) => setDraft({ ...draft, keys: { ...draft.keys, [id]: e.target.value.trim() } })}
+            />
+            <p className="hint">
+              Stored only in this browser and sent only to {isAnthropic ? "Anthropic" : "this provider"}. There is no Callback server.
+              {provider.keyUrl ? (
+                <>
+                  {" "}
+                  Get a key at{" "}
+                  <a href={provider.keyUrl} target="_blank" rel="noreferrer">
+                    {new URL(provider.keyUrl).hostname}
+                  </a>
+                  .
+                </>
+              ) : null}
+            </p>
+          </div>
+        ) : null}
 
         <div className="field">
           <label htmlFor="model">Model</label>
-          <input id="model" type="text" spellCheck={false} value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} />
+          <div className="row nowrap">
+            <input
+              id="model"
+              type="text"
+              list="model-options"
+              spellCheck={false}
+              placeholder={provider.defaultModel || "model name"}
+              value={draft.models[id] ?? ""}
+              onChange={(e) => setDraft({ ...draft, models: { ...draft.models, [id]: e.target.value.trim() } })}
+            />
+            {isAnthropic ? null : (
+              <button type="button" className="btn ghost small" onClick={() => void loadModels()} disabled={loading || !activeBaseUrl(draft)}>
+                {loading ? "Checking..." : "Check connection"}
+              </button>
+            )}
+          </div>
+          <datalist id="model-options">
+            {models.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+          <p className="hint" role="status">
+            {loadNote ??
+              (provider.defaultModel
+                ? `Leave empty to use ${provider.defaultModel}. Model names change; check the connection to see what is available now.`
+                : "Check the connection to see which models the server offers.")}
+          </p>
         </div>
+
+        {isAnthropic || id === "ollama" ? null : (
+          <p className="hint">Free tiers may use what you send to improve their services. Check the provider's terms before pasting anything private.</p>
+        )}
 
         <label className="check">
           <input type="checkbox" checked={draft.speakQuestions} onChange={(e) => setDraft({ ...draft, speakQuestions: e.target.checked })} />

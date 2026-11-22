@@ -5,7 +5,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { Command, InvalidArgumentError } from "commander";
 import { buildStories, evaluate, INTERVIEW_TYPES, type InterviewType } from "./coach.js";
-import { AnthropicLLM } from "./llm.js";
+import { createLLM } from "./llm.js";
 import { analyzeDelivery } from "./metrics.js";
 import { runMock, type IO } from "./mock.js";
 import { checkDeck, DOC_KINDS, planDeck, renderDeck, renderStoryline, writeDoc, type DocKind } from "./pipeline.js";
@@ -89,7 +89,7 @@ program
   .option("-o, --out <dir>", "directory for saved sessions", "sessions")
   .action(async (opts) => {
     if (opts.story && !opts.stories) throw new Error("--story needs --stories <file>.");
-    const llm = new AnthropicLLM();
+    const llm = createLLM();
     const io = terminalIO();
     try {
       const session = await runMock(
@@ -125,7 +125,7 @@ program
   .option("-j, --jd <file>", "job description, as a text or Markdown file")
   .action(async (opts) => {
     const answer = await readRequired(opts.answer);
-    const llm = new AnthropicLLM();
+    const llm = createLLM();
     const feedback = await evaluate(
       llm,
       { type: opts.type, jobDescription: await readOptional(opts.jd) },
@@ -149,7 +149,7 @@ program
     if (Boolean(opts.audio) === Boolean(opts.record)) {
       throw new Error("Pass exactly one of --audio <file> or --record.");
     }
-    const llm = opts.pacingOnly ? null : new AnthropicLLM();
+    const llm = opts.pacingOnly ? null : createLLM();
 
     let audio: string = opts.audio;
     let tmp: string | undefined;
@@ -210,7 +210,7 @@ program
   .option("-o, --out <file>", "where to write the story bank", "stories.md")
   .action(async (opts) => {
     const resume = await readRequired(opts.resume);
-    const llm = new AnthropicLLM();
+    const llm = createLLM();
     console.log("Building your story bank...");
     const stories = await buildStories(llm, resume, await readOptional(opts.jd));
     await writeFile(opts.out, `${stories}\n`, "utf8");
@@ -226,7 +226,7 @@ program
   .option("-o, --out <file>", "where to write the document", "doc.md")
   .action(async (opts) => {
     const source = await readRequired(opts.input);
-    const llm = new AnthropicLLM();
+    const llm = createLLM();
     console.log("Drafting, reviewing, and revising...");
     const { doc, critique } = await writeDoc(llm, source, opts.kind, opts.audience);
     await writeFile(opts.out, `${doc}\n`, "utf8");
@@ -245,7 +245,7 @@ program
   .option("-o, --out <file>", "where to write the deck", "deck.md")
   .action(async (opts) => {
     const source = await readRequired(opts.input);
-    const llm = new AnthropicLLM();
+    const llm = createLLM();
     console.log("Planning the storyline...");
     const deck = await planDeck(llm, source, { slides: opts.slides, minutes: opts.minutes, audience: opts.audience });
     if (deck.slides.length === 0) throw new Error("The model returned no slides.");

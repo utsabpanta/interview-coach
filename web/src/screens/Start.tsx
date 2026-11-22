@@ -122,7 +122,7 @@ export function Start({
 
         <ul className="trust">
           <li>{Icon.check}No signup</li>
-          <li>{Icon.check}Your own API key</li>
+          <li>{Icon.check}Free and local model options</li>
           <li>{Icon.check}No server: your history stays in this browser</li>
         </ul>
 
