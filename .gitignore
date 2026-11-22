@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+# Session transcripts and story banks contain personal material.
+sessions/
+stories.md
