@@ -21,12 +21,16 @@ const SKIP = "/skip";
 export async function runMock(llm: LLM, io: IO, ctx: Context, opts: MockOptions): Promise<Session> {
   const session: Session = { type: ctx.type, startedAt: new Date(), rounds: [] };
 
-  io.say(`Preparing a ${ctx.type} interview with ${opts.count} questions...`);
+  io.say(
+    ctx.stories
+      ? `Preparing ${opts.count} ${ctx.type} questions to rehearse your story bank...`
+      : `Preparing a ${ctx.type} interview with ${opts.count} questions...`,
+  );
   const plan = await planQuestions(llm, ctx, opts.count);
   io.say(`Answer as you would out loud. Finish an answer with an empty line. ${SKIP} skips a question, ${QUIT} ends the interview.\n`);
 
   for (let i = 0; i < plan.length; i++) {
-    const { question, competency } = plan[i];
+    const { question, competency, story } = plan[i];
     io.say(`\nQuestion ${i + 1} of ${plan.length}\n${question}\n`);
 
     const answer = await io.ask("You");
@@ -45,10 +49,11 @@ export async function runMock(llm: LLM, io: IO, ctx: Context, opts: MockOptions)
     }
 
     io.say("\nEvaluating...");
-    const feedback = await evaluate(llm, ctx, exchanges);
+    const feedback = await evaluate(llm, ctx, exchanges, story);
     const metrics = analyzeDelivery(exchanges.map((e) => e.answer).join("\n"), ctx.type);
-    session.rounds.push({ competency, exchanges, feedback, metrics });
-    io.say(`\n${renderFeedback(feedback, metrics)}\n`);
+    session.rounds.push({ competency, story, exchanges, feedback, metrics });
+    // The target story is revealed only after the answer, so the rehearsal tests recall.
+    io.say(`\n${story ? `Target story: ${story}\n` : ""}${renderFeedback(feedback, metrics)}\n`);
   }
 
   return session;
