@@ -1,17 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-/** A structured-output request: the model must reply by filling in this schema. */
-export interface ToolSpec {
-  name: string;
-  description: string;
-  schema: Record<string, unknown>;
-}
-
-/** The only surface the coach needs from a model. Tests supply a fake. */
-export interface LLM {
-  text(system: string, user: string, maxTokens?: number): Promise<string>;
-  structured<T>(system: string, user: string, tool: ToolSpec, maxTokens?: number): Promise<T>;
-}
+export type { LLM, ToolSpec } from "./types.js";
+import type { LLM, ToolSpec } from "./types.js";
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
 

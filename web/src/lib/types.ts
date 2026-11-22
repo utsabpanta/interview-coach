@@ -1,0 +1,55 @@
+import type { Exchange, Feedback, InterviewType, PlannedQuestion } from "../../../src/coach.js";
+import type { DeliveryMetrics } from "../../../src/metrics.js";
+import type { Pacing } from "../../../src/pacing.js";
+
+export interface Setup {
+  jobDescription: string;
+  resume: string;
+  type: InterviewType;
+}
+
+/** One spoken (or typed) answer to a question, with its follow-up and feedback. */
+export interface Attempt {
+  exchanges: Exchange[];
+  feedback: Feedback;
+  metrics: DeliveryMetrics;
+  pacing: Pacing;
+}
+
+export interface Round {
+  question: string;
+  competency: string;
+  attempts: Attempt[];
+}
+
+export interface Session {
+  id: string;
+  startedAt: string;
+  role: string;
+  type: InterviewType;
+  setup: Setup;
+  /** Set when the session is a focused drill on one competency. */
+  drill?: string;
+  plan: PlannedQuestion[];
+  index: number;
+  /** Indexed like `plan`; skipped questions leave a gap. */
+  rounds: Array<Round | undefined>;
+}
+
+/** What is kept in the browser after a session ends. Scores only, no answers. */
+export interface SessionSummary {
+  id: string;
+  date: string;
+  role: string;
+  type: InterviewType;
+  readiness: number;
+  answers: number;
+  skills: Array<{ competency: string; score: number }>;
+}
+
+export interface Settings {
+  apiKey: string;
+  model: string;
+  speakQuestions: boolean;
+  followUps: boolean;
+}

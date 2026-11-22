@@ -1,4 +1,4 @@
-import type { LLM, ToolSpec } from "./llm.js";
+import type { LLM, ToolSpec } from "./types.js";
 
 export type InterviewType = "behavioral" | "technical" | "system-design";
 export const INTERVIEW_TYPES: InterviewType[] = ["behavioral", "technical", "system-design"];
@@ -18,6 +18,8 @@ export interface Context {
   stories?: string;
   /** Restrict rehearsal to stories matching this text. */
   storyFocus?: string;
+  /** Drill mode: every question probes this one competency. */
+  focusCompetency?: string;
 }
 
 export interface PlannedQuestion {
@@ -44,6 +46,16 @@ export interface Feedback {
   improvements: string[];
   /** A tighter version of the answer using only facts the candidate gave. */
   rewrite: string;
+  /** The single most important change, with the phrase from the answer that shows it. */
+  fix?: { headline: string; detail: string; quote?: string };
+  /** On a retry: what changed against the previous attempt. */
+  changes?: string[];
+}
+
+export interface InterviewPlan {
+  /** Short job title taken from the job description, or a generic one. */
+  role: string;
+  questions: PlannedQuestion[];
 }
 
 export const DIMENSIONS = ["structure", "specificity", "relevance", "concision"] as const;
@@ -90,14 +102,19 @@ function planTool(ctx: Context): ToolSpec {
     schema: {
       type: "object",
       properties: {
+        role: { type: "string", description: "The job title from the job description in a few words, or \"General practice\" if there is none." },
         questions: { type: "array", items: { type: "object", properties: item, required } },
       },
-      required: ["questions"],
+      required: ["role", "questions"],
     },
   };
 }
 
 export async function planQuestions(llm: LLM, ctx: Context, count: number): Promise<PlannedQuestion[]> {
+  return (await planInterview(llm, ctx, count)).questions;
+}
+
+export async function planInterview(llm: LLM, ctx: Context, count: number): Promise<InterviewPlan> {
   let user = `${contextBlock(ctx)}
 
 Plan exactly ${count} interview questions. ${TYPE_GUIDE[ctx.type]}
@@ -110,8 +127,14 @@ in the bank answers well; set "story" to that story's exact title and use a diff
 question where possible.${ctx.storyFocus ? ` Only target stories matching "${ctx.storyFocus}".` : ""}
 Phrase each question as a real interviewer would, without naming or hinting at the story.`;
   }
-  const out = await llm.structured<{ questions: PlannedQuestion[] }>(INTERVIEWER, user, planTool(ctx));
-  return (out.questions ?? []).slice(0, count);
+  if (ctx.focusCompetency) {
+    user += `
+
+This is a focused drill: every question must probe "${ctx.focusCompetency}" from a different angle,
+and each question's competency must be "${ctx.focusCompetency}".`;
+  }
+  const out = await llm.structured<InterviewPlan>(INTERVIEWER, user, planTool(ctx));
+  return { role: (out.role ?? "").trim() || "General practice", questions: (out.questions ?? []).slice(0, count) };
 }
 
 export async function followUp(llm: LLM, ctx: Context, exchange: Exchange): Promise<string> {
@@ -151,12 +174,34 @@ const FEEDBACK_TOOL: ToolSpec = {
       strengths: { type: "array", items: { type: "string" }, description: "Up to 3, each one sentence." },
       improvements: { type: "array", items: { type: "string" }, description: "Up to 3 concrete changes, most important first." },
       rewrite: { type: "string", description: "A stronger version of the answer using only stated facts, with [placeholders] for missing details." },
+      fix: {
+        type: "object",
+        description: "The single most important change for the candidate's next attempt.",
+        properties: {
+          headline: { type: "string", description: "The fix as one short imperative sentence, under 12 words." },
+          detail: { type: "string", description: "Why it matters and how to do it, in one or two sentences." },
+          quote: { type: "string", description: "A short phrase copied exactly from the answer that shows the problem. Omit if none fits." },
+        },
+        required: ["headline", "detail"],
+      },
+      changes: { type: "array", items: { type: "string" }, description: "Only when a previous attempt is given: up to 3 short sentences on what improved, got worse, or is still missing." },
     },
-    required: ["scores", "strengths", "improvements", "rewrite"],
+    required: ["scores", "strengths", "improvements", "rewrite", "fix"],
   },
 };
 
-export async function evaluate(llm: LLM, ctx: Context, exchanges: Exchange[], story?: string): Promise<Feedback> {
+export interface PreviousAttempt {
+  answer: string;
+  feedback: Feedback;
+}
+
+export async function evaluate(
+  llm: LLM,
+  ctx: Context,
+  exchanges: Exchange[],
+  story?: string,
+  previous?: PreviousAttempt,
+): Promise<Feedback> {
   const transcript = exchanges
     .map((e, i) => `${i === 0 ? "Question" : "Follow-up"}: ${e.question}\nAnswer: ${e.answer}`)
     .join("\n\n");
@@ -173,6 +218,17 @@ ${transcript}
 The candidate prepared the story titled "${story}" in the story bank for this kind of question.
 If they told a different story, say so. In the improvements, name any important prepared detail
 they left out. The rewrite may use facts from that story as well as from the answer.`;
+  }
+  if (previous) {
+    user += `
+
+This is a retry. The candidate's previous attempt at the same question was:
+<previous_answer>
+${previous.answer}
+</previous_answer>
+It was told to fix: ${previous.feedback.fix?.headline ?? previous.feedback.improvements[0] ?? "nothing specific"}
+Score the new answer on its own merits with the same standard, and fill in "changes" by comparing
+the two attempts. Choose a different "fix" if the earlier one has been addressed.`;
   }
   return llm.structured<Feedback>(COACH, user, FEEDBACK_TOOL, 2500);
 }

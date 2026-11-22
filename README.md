@@ -1,188 +1,107 @@
-# interview-coach
+# Callback
 
-An AI interview coach for the terminal. It runs mock interviews tailored to a job description and
-your resume, scores every answer, analyzes spoken answers, tracks your progress, and turns project
-write-ups into technical documents and slide storylines.
+**Paste a job posting. Be in the interview in 60 seconds.**
 
-Built with TypeScript and the Claude API.
+Callback is an open-source app for spoken interview practice. It reads a job posting, interviews
+you out loud for that exact role, and after every answer gives you the one thing to fix and a
+second attempt to prove it.
 
-## What it does
+- **Talk, don't type.** The interviewer asks aloud and follows up on your weakest claim. Your answer is transcribed as you speak.
+- **One fix, then retry.** Each answer is scored on structure, specificity, relevance, and concision, with a single most important change and a before-and-after comparison when you try again.
+- **A readiness score for the role.** The scorecard shows where you stand by skill, how you sounded (pace, filler words, "I" versus "we"), and a ten-minute drill on your weakest skill.
+- **No signup and no server.** The app is a static site. It runs in your browser with your own Anthropic API key, and your history never leaves that browser.
 
-| Command | Purpose |
-| --- | --- |
-| `coach mock` | An interactive mock interview. The interviewer asks a question, probes with one follow-up, then scores your answer and rewrites it. With `--stories`, it rehearses your story bank. |
-| `coach voice` | Spoken practice. Records your answer (or loads a recording), transcribes it, and reports pace, pauses, and filler words alongside the content feedback. |
-| `coach review` | Scores a single written answer or transcript from a file. |
-| `coach progress` | Score trends across saved sessions, by competency and by scoring dimension. |
-| `coach stories` | Reads your resume and writes a STAR story bank, with the details you still need to fill in and the questions each story answers. |
-| `coach doc` | Turns rough notes into a technical document: draft, review by a skeptical critic, then revise. |
-| `coach deck` | Turns a document into a slide storyline where every title states a conclusion, written as Marp Markdown. |
+## Run it
 
-Each answer is scored from 1 to 5 on structure, specificity, relevance, and concision. Alongside the
-model's feedback, the coach computes delivery metrics locally: word count, speaking time, filler
-words, and whether you say "we" when you should say "I".
-
-The coach is instructed never to invent facts. Rewrites use only what you said and mark missing
-details with placeholders such as `[metric]`; documents mark gaps with `TODO:` lines.
-
-## Setup
-
-Requires Node.js 20 or later and an Anthropic API key.
+Requires Node.js 20 or later.
 
 ```bash
 git clone https://github.com/utsabpanta/interview-coach.git
-cd interview-coach
+cd interview-coach/web
 npm install
-npm run build
-npm link            # optional: makes the `coach` command available everywhere
-
-export ANTHROPIC_API_KEY=your-key
+npm run dev
 ```
 
-Without `npm link`, run commands as `npm run dev -- <command>`.
+Open the address it prints, paste a job description, and press **Start interview**. The first
+time, it asks for an [Anthropic API key](https://console.anthropic.com/).
 
-## Usage
+To try the flow without a key, open the dev server with `?mock=1` (for example
+`http://localhost:5173/?mock=1`). This uses a scripted stand-in for the model, so the questions
+and feedback are canned; it exists for development and is not included in production builds.
 
-### Mock interviews
+### Browser support
 
-```bash
-# Behavioral mock interview, 5 questions, tailored to a role
-coach mock --jd job.md --resume resume.md
+Voice uses the browser's built-in speech features. Chrome, Edge, and Safari support speech
+recognition; in other browsers, or if the microphone is blocked, Callback falls back to typed
+answers. Pace is only measured for spoken answers.
 
-# System design round, 2 questions, no follow-ups
-coach mock --type system-design --questions 2 --no-follow-ups
-```
+### Deploying
 
-Type your answer and finish it with an empty line. `/skip` skips a question and `/quit` ends the
-interview early; answers given so far are still saved.
+`npm run build` in `web/` produces a static site in `web/dist` that can be hosted anywhere. The
+included GitHub Actions workflow tests the project and publishes it to GitHub Pages on every push
+to `main`; turn it on once under **Settings → Pages → Source: GitHub Actions**.
 
-Interview types: `behavioral`, `technical`, `system-design`.
+## Privacy
 
-### Story bank and rehearsal
+Callback has no backend, accounts, or analytics. What that means in practice:
 
-```bash
-# Build the story bank, then fill in its "Fill in:" details by hand
-coach stories --resume resume.md --jd job.md
+- **Your API key** is stored in your browser's local storage and sent only to Anthropic.
+- **The job posting, your resume, and your answers** are sent to Anthropic's API with your key to plan questions and score answers. They are not stored anywhere else and are gone when you close the tab.
+- **Your history** keeps scores only (role, date, readiness, skill scores), in local storage.
+- **Speech recognition is done by your browser**, not by Callback. Some browsers, including Chrome, send audio to their vendor's speech service to transcribe it. Use typed answers if you do not want that.
+- **The share card** contains scores only.
 
-# Rehearse: every question targets one of your stories
-coach mock --stories stories.md
+Because the key lives in the browser, use a key with a spending limit, and only run builds of
+Callback that you trust.
 
-# Rehearse one story
-coach mock --stories stories.md --story "migration" --questions 3
-```
+## How scoring works
 
-In rehearsal the target story is revealed only after you answer, and the feedback names prepared
-details you left out.
+Every answer gets four scores from 1 to 5. The readiness score is the average across your answers
+(each question counted at its latest attempt) as a percentage of the maximum; 80 is marked as
+interview-ready. Delivery metrics are computed locally, without a model: word count, speaking
+time, filler words, and pronoun use.
 
-### Voice practice
+The coach is instructed never to invent facts about you. Rewritten answers use only what you said
+and mark missing details with placeholders such as `[metric]`.
 
-```bash
-# Record from your microphone; press Enter to stop
-coach voice --question "Tell me about a time you disagreed with your manager." --record
+## Command-line tool
 
-# Or analyze an existing recording
-coach voice --question "Why this company?" --audio answer.m4a --competency influence
-
-# Pace and pauses only, without content scoring (no Anthropic key needed)
-coach voice --question "..." --audio answer.m4a --pacing-only
-```
-
-Claude's API does not accept audio, so transcription uses an OpenAI-compatible speech-to-text
-endpoint: OpenAI's Whisper API by default (`OPENAI_API_KEY`), or any compatible server such as a
-local Whisper server (`COACH_TRANSCRIBE_URL`). Recording needs [ffmpeg](https://ffmpeg.org) and is
-preconfigured for macOS and Linux; elsewhere, set `COACH_FFMPEG_INPUT` or use `--audio`.
-
-Pace is measured from the recording's real length; 120 to 170 words per minute is the target.
-Pauses of 2 seconds or more between transcript segments are counted. Transcription models often
-drop "um" and "uh", so filler counts from audio are a lower bound.
-
-### Progress
-
-```bash
-coach progress
-```
-
-```
-3 answers across 2 sessions
-
-Sessions
-  2026-11-01  behavioral      2 answers  3.0/5
-  2026-11-08  behavioral      1 answers  3.5/5
-
-By competency (weakest first)
-  conflict       2.8/5   2 answers  up 1.5
-  failure        4.0/5   1 answers
-
-By dimension
-  structure      3.3/5
-  specificity    2.7/5  <- work on this
-  relevance      3.3/5
-  concision      3.3/5
-
-Filler words: 0 per 100 words on average
-```
-
-Mock and voice sessions are saved to `sessions/` as a readable Markdown transcript plus a JSON
-record, which is what `progress` reads. Mock questions use a fixed set of competency labels per
-interview type so that scores line up across sessions.
-
-### Doc-to-deck pipeline
-
-```bash
-# Rough notes -> reviewed design doc
-coach doc --input notes.md --kind design-doc --audience "platform team" --out design.md
-
-# Doc -> 8-slide storyline for a 10-minute talk
-coach deck --input design.md --slides 8 --minutes 10 --out deck.md
-```
-
-Document kinds: `design-doc`, `readme`, `runbook`, `adr`, `postmortem`.
-
-`coach doc` prints the reviewer's notes on the first draft and writes the revised document.
-`coach deck` prints the slide titles on their own, so you can check that the story holds, and
-flags slides that break the rules: titles that are labels rather than conclusions, more than four
-points, points over 15 words, and missing speaker notes. The output is
-[Marp](https://marp.app) Markdown, with speaker notes as comments; render it with
-`npx @marp-team/marp-cli deck.md --pptx` or `--pdf`.
-
-This doubles as interview prep: write up a project, turn it into a doc and a five-minute deck, then
-practice presenting it with `coach voice`.
-
-## Configuration
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `ANTHROPIC_API_KEY` | none | Required for everything except `progress` and `voice --pacing-only`. |
-| `COACH_MODEL` | `claude-sonnet-5-5` | Which Claude model to use. |
-| `OPENAI_API_KEY` | none | For `voice`, when using OpenAI's transcription API. |
-| `COACH_TRANSCRIBE_URL` | OpenAI's endpoint | Any OpenAI-compatible `/audio/transcriptions` endpoint. |
-| `COACH_TRANSCRIBE_MODEL` | `whisper-1` | Transcription model name sent to that endpoint. |
-| `COACH_FFMPEG_INPUT` | per platform | ffmpeg input arguments for the microphone, for example `-f pulse -i default`. |
-
-Sessions (`sessions/`) and `stories.md` are in `.gitignore` because they contain personal material.
+The repository also contains `coach`, a terminal version with extra tools: analysis of recorded
+audio, a story bank built from your resume, progress tracking, and a pipeline that turns project
+notes into a technical document and a slide storyline. See [docs/cli.md](docs/cli.md).
 
 ## Development
 
 ```bash
-npm test            # unit tests; no API keys needed
+# Shared logic and CLI (repository root)
+npm install
+npm test
 npm run typecheck
+
+# Web app
+cd web
+npm install
+npm test
+npm run build
 ```
 
 ```
-src/
-  cli.ts       commands and terminal input
-  mock.ts      the interview loop
-  coach.ts     prompts: plan questions, follow up, evaluate, build stories
-  metrics.ts   local delivery metrics (no model call)
-  voice.ts     recording, transcription, and pacing analysis
-  session.ts   session rendering, saving, and loading
-  progress.ts  aggregation across sessions
-  pipeline.ts  doc writer and slide storyline
-  llm.ts       thin Claude API wrapper behind an interface, so tests use a fake
+src/                 coaching logic shared by the web app and the CLI
+  coach.ts           prompts: plan questions, follow up, evaluate
+  metrics.ts         local delivery metrics
+  pacing.ts          pace and pause analysis
+  cli.ts, ...        the command-line tool
+web/
+  src/App.tsx        session state and screen flow
+  src/screens/       start, live interview, feedback, scorecard
+  src/lib/           browser model client, speech, scoring, storage, share card
+docs/cli.md          command-line documentation
 ```
 
 ## Roadmap
 
-- Video practice: analyze eye contact and on-camera delivery, not just audio.
-- Narrated video from a deck: script, voiceover, and slides combined.
-- Timed coding rounds.
+- Interview on your own code: connect GitHub repos and get questions about your real design decisions.
+- Community question packs for specific roles and companies.
+- Support for local and other model providers.
+- A hosted demo that needs no API key.
+- Daily drill reminders and progress over time.

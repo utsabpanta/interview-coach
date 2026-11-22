@@ -1,4 +1,4 @@
-import type { LLM, ToolSpec } from "./llm.js";
+import type { LLM, ToolSpec } from "./types.js";
 import { countWords } from "./metrics.js";
 
 /** Doc-to-deck pipeline: rough notes -> technical doc -> slide storyline. */

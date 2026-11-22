@@ -40,6 +40,7 @@ export function renderFeedback(feedback: Feedback, metrics: DeliveryMetrics, pac
     `Score: ${averageScore(feedback)}/5  (structure ${s.structure}, specificity ${s.specificity}, relevance ${s.relevance}, concision ${s.concision})`,
     delivery,
     ...notes.map((n) => `  - ${n}`),
+    ...(feedback.fix ? ["", `Fix first: ${feedback.fix.headline}`, `  ${feedback.fix.detail}`] : []),
     "",
     "Strengths:",
     ...feedback.strengths.map((x) => `  - ${x}`),
