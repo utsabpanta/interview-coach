@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Add a question pack
+    url: https://github.com/utsabpanta/interview-coach/blob/main/packs/README.md
+    about: Know what interviews for a role really probe? Add a pack; it is one JSON file and needs no code.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import type { Patience } from "../../src/intents.js";
 import { listModels } from "../../src/openai.js";
 import { explainError } from "./lib/llm.js";
+import { ON_DEVICE_MODELS, onDeviceSupported } from "./lib/localLlm.js";
 import { activeBaseUrl, activeKey, missing, PROVIDER_IDS, PROVIDERS } from "./lib/providers.js";
 import type { ProviderId, Settings } from "./lib/types.js";
 import { browserVoices, GROQ_VOICES, resetVoiceFallback, speak, type VoiceSettings } from "./lib/voice.js";
@@ -236,7 +237,11 @@ export function SettingsDialog({
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form ref={form} className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" onSubmit={submit}>
         <h2 id="settings-title">Settings</h2>
-        {reason && missing(draft) ? <p className="notice">{missing(draft)}</p> : null}
+        {reason && missing(draft) ? (
+          <p className="notice">
+            {missing(draft)} No key? Choose "On this device" to run a model in your browser.
+          </p>
+        ) : null}
 
         <div className="field">
           <label htmlFor="provider">Model provider</label>
@@ -299,6 +304,27 @@ export function SettingsDialog({
           </div>
         ) : null}
 
+        {id === "ondevice" ? (
+          <div className="field">
+            <label htmlFor="device-model">Model</label>
+            <select
+              id="device-model"
+              value={draft.models.ondevice || ON_DEVICE_MODELS[0].id}
+              onChange={(e) => setDraft({ ...draft, models: { ...draft.models, ondevice: e.target.value } })}
+            >
+              {ON_DEVICE_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <p className="hint" role="status">
+              {onDeviceSupported()
+                ? "The model is downloaded once, when you start your first interview, and then kept by your browser."
+                : "This browser cannot run a model on your device (WebGPU is not available). Use a recent Chrome or Edge on a computer, or pick another provider."}
+            </p>
+          </div>
+        ) : (
         <div className="field">
           <label htmlFor="model">Model</label>
           <div className="row nowrap">
@@ -329,8 +355,9 @@ export function SettingsDialog({
                 : "Check the connection to see which models the server offers.")}
           </p>
         </div>
+        )}
 
-        {isAnthropic || id === "ollama" ? null : (
+        {isAnthropic || id === "ollama" || id === "ondevice" ? null : (
           <p className="hint">Free tiers may use what you send to improve their services. Check the provider's terms before pasting anything private.</p>
         )}
 

@@ -3,6 +3,8 @@ import { planInterview, ROUND_SHAPE } from "../../src/coach.js";
 import type { LLM } from "../../src/types.js";
 import { SettingsDialog } from "./components.js";
 import { explainError } from "./lib/llm.js";
+import { onLoadProgress, type LoadProgress } from "./lib/localLlm.js";
+import { findPack } from "./lib/packs.js";
 import { makeLLM, missing } from "./lib/providers.js";
 import { MockLLM } from "./lib/mockLlm.js";
 import { answered, previousReadiness, summarize } from "./lib/score.js";
@@ -31,6 +33,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ reason?: string; pending?: Setup } | null>(null);
   const [previous, setPrevious] = useState<number | null>(null);
+  /** Download progress of the on-device model, while it is loading. */
+  const [loading, setLoading] = useState<LoadProgress | null>(null);
+  useEffect(() => onLoadProgress(setLoading), []);
   /** Once someone chooses to type, keep typing for the rest of the interview. */
   const [preferTyping, setPreferTyping] = useState(false);
 
@@ -60,6 +65,7 @@ export function App() {
             jobDescription: setup.jobDescription || undefined,
             resume: setup.resume || undefined,
             focusCompetency: drill,
+            pack: findPack(setup.packId, setup.type),
           },
           // A full round ends with the candidate's own questions; a drill does not.
           drill ? DRILL_QUESTIONS : ROUND_SHAPE[setup.type].topics + 1,
@@ -193,6 +199,15 @@ export function App() {
           }}
         />
       )}
+
+      {loading ? (
+        <div className="load-bar" role="status">
+          <div className="load-fill" style={{ width: `${Math.round(loading.progress * 100)}%` }} />
+          <p>
+            Preparing the on-device model ({Math.round(loading.progress * 100)}%). The first time is a large download; keep this tab open.
+          </p>
+        </div>
+      ) : null}
 
       {busy && stage === "scorecard" ? (
         <div className="scrim" role="status">

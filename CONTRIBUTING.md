@@ -38,11 +38,15 @@ npm test && npm run build
 | `src/metrics.ts`, `src/pacing.ts` | Delivery metrics computed without a model. |
 | `web/src/screens/` | The four screens: start, interview, feedback, scorecard. |
 | `web/src/lib/providers.ts` | Model provider presets. |
+| `web/src/lib/localLlm.ts` | The experimental model that runs in the browser. |
+| `packs/` | Community question packs, validated by `test/packs.test.ts`. |
 | `web/src/lib/speech.ts` | Speech recognition, read-aloud, and the voice meter. |
 | `src/cli.ts` and friends | The command-line tool, documented in `docs/cli.md`. |
 
 ## Good first contributions
 
+- **A question pack for a role you interview for.** This is the easiest way to help and needs no
+  code: add one JSON file. See [packs/README.md](packs/README.md).
 - **Interview guidance for a role you know.** If the questions for your field feel generic, improve
   the guidance in `src/coach.ts` and say in the pull request what changed in practice.
 - **A model provider preset.** Add it to `web/src/lib/providers.ts` and confirm it accepts
@@ -68,3 +72,6 @@ npm test && npm run build
 Open an issue with the browser, the model provider and model name, the interview type, and what
 you expected. For poor questions or feedback, paste an example; that is the fastest way to get the
 guidance improved. Remove anything private first.
+
+For security problems, do not open a public issue; see [SECURITY.md](SECURITY.md). Everyone taking
+part is expected to follow the [code of conduct](CODE_OF_CONDUCT.md).

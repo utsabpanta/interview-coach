@@ -1,0 +1,16 @@
+{
+  "id": "product-manager",
+  "name": "Product manager",
+  "description": "Prioritization, discovery, and influence: for people who decide what gets built and why.",
+  "types": [
+    "behavioral"
+  ],
+  "guidance": "Probe for decisions, evidence, and trade-offs rather than process vocabulary. Ask about something they chose not to build and how they defended it. Ask how they learned what users needed: who they talked to, what surprised them, and what they changed as a result. Push on metrics: which number they were trying to move, why that one, and what happened to it. Ask about a launch that underperformed and what they did in the following two weeks. Explore influence without authority through a specific disagreement with engineering or leadership. Ask how AI tools have changed how they research, write, or prototype, and what they still do by hand. Weak answers describe frameworks; strong answers describe a specific bet, who disagreed, and what the data later showed.",
+  "examples": [
+    "Tell me about something you decided not to build that people wanted. How did you make the case, and were you right?",
+    "Walk me through the last time talking to users changed your roadmap. What did you hear, and what did you drop?",
+    "Describe a launch that missed its goal. What did you do in the two weeks after?",
+    "An engineer tells you your top priority will take three times longer than planned. Walk me through the conversation.",
+    "Which metric did your last project aim to move, why that one, and what would have made you abandon it?"
+  ]
+}

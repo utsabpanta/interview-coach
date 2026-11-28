@@ -12,7 +12,9 @@ import { defineConfig, type Plugin } from "vite";
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  // 'wasm-unsafe-eval' lets the optional on-device model run its WebAssembly; it does not allow eval of scripts.
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",

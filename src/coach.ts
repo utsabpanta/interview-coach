@@ -31,6 +31,45 @@ export interface Context {
   storyFocus?: string;
   /** Drill mode: every question probes this one competency. */
   focusCompetency?: string;
+  /** Community-written guidance for a kind of role (see the packs/ directory). */
+  pack?: Pick<QuestionPack, "name" | "guidance" | "examples">;
+  /** The candidate's shared notes pad: an outline, pseudo-code, or a text sketch of a design. */
+  workspace?: string;
+}
+
+/** A question pack: what good interviews for one kind of role probe, written by contributors. */
+export interface QuestionPack {
+  id: string;
+  name: string;
+  description: string;
+  /** Interview types the pack applies to. */
+  types: InterviewType[];
+  /** What to probe and how, in plain prose. Added to the interviewer's instructions. */
+  guidance: string;
+  /** A few questions that show the style. Used as illustrations, never asked word for word. */
+  examples: string[];
+}
+
+/** Checks a pack's shape; returns a list of problems, empty when it is valid. */
+export function validatePack(raw: unknown): string[] {
+  const p = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const problems: string[] = [];
+  const str = (k: string, min: number, max: number) => {
+    const v = p[k];
+    if (typeof v !== "string" || v.trim().length < min) problems.push(`"${k}" must be text of at least ${min} characters`);
+    else if (v.length > max) problems.push(`"${k}" must be at most ${max} characters`);
+  };
+  if (typeof p.id !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(p.id)) problems.push('"id" must be lowercase words joined by hyphens');
+  str("name", 3, 60);
+  str("description", 10, 200);
+  str("guidance", 80, 2500);
+  if (!Array.isArray(p.types) || p.types.length === 0 || p.types.some((t) => !INTERVIEW_TYPES.includes(t as InterviewType))) {
+    problems.push(`"types" must list one or more of: ${INTERVIEW_TYPES.join(", ")}`);
+  }
+  if (!Array.isArray(p.examples) || p.examples.length < 3 || p.examples.length > 12 || p.examples.some((e) => typeof e !== "string" || e.trim().length < 15 || e.length > 400)) {
+    problems.push('"examples" must be 3 to 12 questions of 15 to 400 characters each');
+  }
+  return problems;
 }
 
 export interface PlannedQuestion {
@@ -65,6 +104,13 @@ export interface Feedback {
   fix?: { headline: string; detail: string; quote?: string };
   /** On a retry: what changed against the previous attempt. */
   changes?: string[];
+  /** Coaching points tied to exact phrases the candidate said. */
+  notes?: CoachingNote[];
+}
+
+export interface CoachingNote {
+  quote: string;
+  note: string;
 }
 
 export interface InterviewPlan {
@@ -102,6 +148,11 @@ function contextBlock(ctx: Context): string {
   if (ctx.jobDescription) parts.push(`<job_description>\n${ctx.jobDescription}\n</job_description>`);
   if (ctx.resume) parts.push(`<resume>\n${ctx.resume}\n</resume>`);
   if (ctx.stories) parts.push(`<story_bank>\n${ctx.stories}\n</story_bank>`);
+  if (ctx.workspace?.trim()) {
+    parts.push(
+      `<candidate_notes>\n${ctx.workspace.trim()}\n</candidate_notes>\nThe candidate is sharing a notes pad with you, shown above: an outline, pseudo-code, or a text sketch of their design. Treat it as part of what they have told you.`,
+    );
+  }
   return parts.join("\n\n");
 }
 
@@ -190,6 +241,15 @@ ${TYPE_GUIDE[ctx.type]}
 
 Tailor everything to the job description and resume when provided, and order the questions from
 warm-up to hardest.`;
+  if (ctx.pack) {
+    user += `
+
+Guidance for this kind of role (${ctx.pack.name}), written by people who interview for it:
+${ctx.pack.guidance.trim()}
+
+Questions in the right style, as illustrations only. Write your own; do not reuse these:
+${ctx.pack.examples.map((e) => `- ${e}`).join("\n")}`;
+  }
   if (ctx.stories) {
     user += `
 
@@ -335,6 +395,18 @@ const FEEDBACK_TOOL: ToolSpec = {
         required: ["headline", "detail"],
       },
       changes: { type: "array", items: { type: "string" }, description: "Only when a previous attempt is given: up to 3 short sentences on what improved, got worse, or is still missing." },
+      notes: {
+        type: "array",
+        description: "Up to 4 coaching points on specific moments, good or bad. Each is tied to a short phrase copied exactly from the candidate's own words.",
+        items: {
+          type: "object",
+          properties: {
+            quote: { type: "string", description: "3 to 12 words copied exactly from what the candidate said." },
+            note: { type: "string", description: "One sentence: what was strong or weak about that moment, and what to do instead." },
+          },
+          required: ["quote", "note"],
+        },
+      },
     },
     required: ["scores", "strengths", "improvements", "rewrite", "fix"],
   },
@@ -467,6 +539,13 @@ export function normalizeFeedback(raw: unknown): Feedback {
   const improvements = list(r.improvements, 3);
   const headline = text(f.headline) || improvements[0] || "";
   const changes = list(r.changes, 3);
+  const notes = (Array.isArray(r.notes) ? r.notes : [])
+    .map((n): CoachingNote => {
+      const item = asObject(n) ?? {};
+      return { quote: text(item.quote), note: text(item.note) };
+    })
+    .filter((n) => n.quote && n.note)
+    .slice(0, 4);
   return {
     scores: {
       structure: score(s.structure),
@@ -479,6 +558,7 @@ export function normalizeFeedback(raw: unknown): Feedback {
     rewrite: text(r.rewrite),
     ...(headline ? { fix: { headline, detail: text(f.detail), ...(text(f.quote) ? { quote: text(f.quote) } : {}) } } : {}),
     ...(changes.length ? { changes } : {}),
+    ...(notes.length ? { notes } : {}),
   };
 }
 

@@ -7,8 +7,8 @@
 
 Callback is an open-source app for spoken interview practice. It reads a job posting, holds a
 two-way interview with you out loud for that exact role, and after every topic gives you the one
-thing to fix and a second attempt to prove it. It is free to use with open models, needs no
-signup, and has no server.
+thing to fix and a second attempt to prove it. It is free, needs no signup and no server, and can
+run entirely on your own computer.
 
 **[Try it in your browser →](https://utsabpant.com/interview-coach/)**
 
@@ -22,7 +22,10 @@ signup, and has no server.
 - **Your turn to ask.** Each round ends with your questions for the interviewer, and those are scored too.
 - **One fix, then retry.** Each conversation is scored on structure, specificity, relevance, and concision, with a single most important change and a before-and-after comparison when you try again.
 - **A practice score that doesn't oversell.** The scorecard shows where you stand by skill, how you sounded (pace, filler words, "I" versus "we"), and a ten-minute drill on your lowest-scoring skill. It won't put a number on a round you mostly skipped.
-- **Free and open models.** Use a free hosted tier (Groq, Google Gemini, OpenRouter), a model running on your own computer (Ollama, LM Studio), or Claude.
+- **Coaching on the exact words you used.** The transcript comes back with coaching points attached to the phrases they are about, and a breakdown of your filler words.
+- **A notes pad for technical rounds.** Sketch an outline, pseudo-code, or a design in text; the interviewer reads it along with what you say.
+- **Role packs written by the community.** Guidance on what interviews for a kind of role really probe: backend, frontend, product, data, management, new graduates. [Add your own](packs/README.md).
+- **Free and open models, or no key at all.** Use a free hosted tier (Groq, Google Gemini, OpenRouter), a model on your own computer (Ollama, LM Studio), a model that runs inside your browser, or Claude.
 - **No signup and no server.** The app is a static site. It runs in your browser and talks straight to the model provider you choose; your history never leaves that browser.
 
 | Start from a job posting | Fix one thing, then retry | See where you stand |
@@ -34,10 +37,12 @@ Screenshots show the built-in sample data, not output from a real model.
 ## Quick start
 
 1. Open **[utsabpant.com/interview-coach](https://utsabpant.com/interview-coach/)** in Chrome, Edge, or Safari.
-2. Get a free API key from [Groq](https://console.groq.com/keys) (no credit card), or pick another provider.
-3. Paste a job description, press **Start interview**, and enter the key when asked.
+2. Paste a job description and press **Start interview**.
+3. Choose a model when asked:
+   - **Fastest and best feedback:** a free API key from [Groq](https://console.groq.com/keys), no credit card.
+   - **No key at all:** choose **On this device**. A small model downloads once (about 2 GB) and runs in your browser. This is experimental; see [Model providers](#model-providers).
 
-Prefer to keep everything on your machine? Run it locally with [Ollama](#model-providers).
+Prefer to keep everything on your machine with a stronger model? Run it with [Ollama](#model-providers).
 
 ## Run it locally
 
@@ -61,6 +66,7 @@ time, it asks which model provider to use.
 | Google Gemini | Free tier on selected models | A key from [aistudio.google.com](https://aistudio.google.com/apikey) |
 | OpenRouter | Free models (`:free`), low daily cap | A key from [openrouter.ai](https://openrouter.ai/keys) |
 | Ollama | Free, runs on your computer | [Ollama](https://ollama.com) running locally with a model pulled |
+| On this device (experimental) | Free, runs in your browser | A computer with a recent graphics chip, Chrome or Edge, and a one-time download of 2 to 5 GB |
 | Anthropic Claude | Paid | A key from [console.anthropic.com](https://console.anthropic.com/) |
 | Other | Depends | Any OpenAI-compatible server address, such as LM Studio or vLLM |
 
@@ -77,6 +83,13 @@ OLLAMA_ORIGINS=http://localhost:5173 ollama serve
 
 Settings shows the exact command for the address you are on. Some browsers block a hosted (https)
 page from calling a local server; if that happens, run the app locally as above.
+
+**On this device.** The model runs inside the browser through [WebLLM](https://github.com/mlc-ai/web-llm),
+so there is no key, no account, and nothing is sent to a model provider. It is the easiest way to
+try Callback and the most private, but it is experimental: small models ask blander questions and
+give rougher feedback, the first load is a large download, and it needs WebGPU, which phones and
+older computers may not have. If it does not work for you, a free Groq key is the next easiest
+option.
 
 **Which model?** Feedback quality depends on the model. Larger models give sharper, more specific
 feedback; small local models are usable but looser, and may be slow without a GPU. One interview
@@ -236,7 +249,8 @@ src/                 coaching logic shared by the web app and the CLI
 web/
   src/App.tsx        session state and screen flow
   src/screens/       start, live interview, feedback, scorecard
-  src/lib/           providers, speech recognition, voice, scoring, storage, share card
+  src/lib/           providers, on-device model, speech recognition, voice, scoring, storage, packs
+packs/               community question packs, one JSON file per kind of role
 docs/cli.md          command-line documentation
 ```
 
@@ -250,11 +264,33 @@ If Callback helped you prepare, a star helps other people find it.
 
 ## Roadmap
 
-- Interview on your own code: connect GitHub repos and get questions about your real design decisions.
-- Community question packs for specific roles and companies.
-- An in-browser model option that needs no key and no install.
-- A hosted demo that needs no API key.
-- Daily drill reminders and progress over time.
+Help is welcome on any of these; open an issue to talk it through first.
+
+- **Other languages.** Speech recognition, filler-word detection, and request detection are English-only today.
+- **A drawing whiteboard** for system design, beyond the text notes pad.
+- **Checking the scores.** A small public set of answers scored by experienced interviewers, to measure how well each model's scoring agrees with people.
+- **More role packs**, especially outside software.
+- **Interview on your own code**: questions about the real decisions in a repository you point it at.
+- **Keeping a conversation across a page reload.**
+- **Phones.** The layout works on small screens, but voice on mobile browsers is untested.
+
+## How it compares
+
+| | Callback | Paid interview simulators | Speech coaches | General chat assistants |
+| --- | --- | --- | --- | --- |
+| Cost | Free | Subscription | Free tier, then subscription | Free tier, then subscription |
+| Signup | None | Required | Required | Usually required |
+| Tailored to a job posting | Yes | Yes | Partly | If you prompt it |
+| Two-way spoken interview | Yes | Yes | Yes | With voice mode |
+| Fix one thing, then retry | Yes | Varies | Varies | No |
+| Can run fully on your computer | Yes | No | No | No |
+| Open source | Yes | No | No | No |
+| Video and body-language feedback | No | Some | Yes | No |
+| Drawing whiteboard, code execution | No | Some | No | No |
+| Large curated question libraries | No | Yes | No | No |
+
+Callback is a young project. It has been tested with simulated microphones and models far more
+than with real ones, so expect rough edges and please report them.
 
 ## License
 

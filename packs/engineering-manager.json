@@ -1,0 +1,16 @@
+{
+  "id": "engineering-manager",
+  "name": "Engineering manager",
+  "description": "People, delivery, and judgment: for those who lead engineering teams.",
+  "types": [
+    "behavioral"
+  ],
+  "guidance": "Probe for specific people decisions and their outcomes, with enough detail to be believable while respecting confidentiality. Ask about managing an underperformer: what they noticed, what they said, how long they gave it, and how it ended. Ask about a time they disagreed with their own manager's direction and what they did. Explore delivery under pressure: a slipping project, what they cut, and how they told stakeholders. Ask how they grew a strong engineer who was ready for more. Ask how they set expectations for AI tools on their team, including review standards and what they measure. Weak answers are philosophies of management; strong answers are particular conversations, with what was said and what happened next.",
+  "examples": [
+    "Tell me about someone on your team who was not meeting the bar. What did you do, week by week, and how did it end?",
+    "Describe a project that was going to miss its date. What did you cut, and how did you tell the people waiting on it?",
+    "Tell me about a time you disagreed with a decision from above and had to carry it out. What did you say to your team?",
+    "How did you help a strong engineer get to the next level? What did you change about their work?",
+    "Your team's use of AI coding tools is uneven. What expectations have you set, and how do you know they are working?"
+  ]
+}

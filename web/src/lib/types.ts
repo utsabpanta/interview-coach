@@ -8,6 +8,8 @@ export interface Setup {
   jobDescription: string;
   resume: string;
   type: InterviewType;
+  /** Id of a community question pack, if one was chosen. */
+  packId?: string;
 }
 
 /** One spoken (or typed) answer to a question, with its follow-up and feedback. */
@@ -16,6 +18,8 @@ export interface Attempt {
   feedback: Feedback;
   metrics: DeliveryMetrics;
   pacing: Pacing;
+  /** What the candidate wrote in the shared notes pad, if anything. */
+  workspace?: string;
 }
 
 export interface Round {
@@ -55,7 +59,7 @@ export interface SessionSummary {
   skills: Array<{ competency: string; score: number }>;
 }
 
-export type ProviderId = "groq" | "gemini" | "openrouter" | "ollama" | "anthropic" | "custom";
+export type ProviderId = "groq" | "gemini" | "openrouter" | "ollama" | "ondevice" | "anthropic" | "custom";
 
 export interface Settings {
   provider: ProviderId;

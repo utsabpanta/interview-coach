@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { INTERVIEW_TYPES, ROUND_SHAPE, type InterviewType } from "../../../src/coach.js";
 import { Header, Icon } from "../components.js";
+import { packsFor } from "../lib/packs.js";
 import { enoughToJudge, titleCase } from "../lib/score.js";
 import type { SessionSummary, Setup } from "../lib/types.js";
 
@@ -33,10 +34,14 @@ export function Start({
   const [resume, setResume] = useState("");
   const [showResume, setShowResume] = useState(false);
   const [type, setType] = useState<InterviewType>("behavioral");
+  const [packId, setPackId] = useState("");
+  const packs = packsFor(type);
+  // A pack that does not cover the chosen round is dropped, not silently kept.
+  const pack = packs.find((p) => p.id === packId);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!busy) onStart({ jobDescription: jobDescription.trim(), resume: resume.trim(), type });
+    if (!busy) onStart({ jobDescription: jobDescription.trim(), resume: resume.trim(), type, packId: pack?.id });
   };
 
   const recent = [...history].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -105,6 +110,27 @@ export function Start({
             </div>
           </fieldset>
 
+          {packs.length ? (
+            <div className="field">
+              <label htmlFor="pack">Role focus</label>
+              <select id="pack" value={pack?.id ?? ""} onChange={(e) => setPackId(e.target.value)}>
+                <option value="">None: follow the job posting only</option>
+                {packs.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="hint">
+                {pack ? pack.description : "Optional. Community-written guidance on what interviews for a kind of role really probe."}{" "}
+                <a href="https://github.com/utsabpanta/interview-coach/tree/main/packs" target="_blank" rel="noreferrer">
+                  Add your own
+                </a>
+                .
+              </p>
+            </div>
+          ) : null}
+
           {error ? (
             <p className="notice" role="alert">
               {error}
@@ -124,7 +150,7 @@ export function Start({
 
         <ul className="trust">
           <li>{Icon.check}No signup</li>
-          <li>{Icon.check}Free and local model options</li>
+          <li>{Icon.check}Free hosted models, or no key at all</li>
           <li>{Icon.check}No server: your history stays in this browser</li>
         </ul>
 

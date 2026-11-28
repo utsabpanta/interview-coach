@@ -1,0 +1,18 @@
+{
+  "id": "frontend-engineer",
+  "name": "Frontend engineer",
+  "description": "Interfaces, performance, and accessibility: for engineers who build what people see and touch.",
+  "types": [
+    "behavioral",
+    "technical",
+    "system-design"
+  ],
+  "guidance": "Probe for judgment about users, not framework trivia. Good candidates can explain how they found out an interface was slow or confusing, how they measured it, and what they traded away to fix it. Ask about state management decisions in a real feature and what went wrong. Ask how they make something accessible and how they verified it, with a keyboard and a screen reader, not a checklist. Push on working with design and product: a time they pushed back, and how it resolved. For debugging, give a concrete symptom, such as a page that janks on scroll or a form that loses input, and have them reason aloud. Ask how they use AI tools for UI code and how they catch the subtle bugs those tools introduce. Strong answers mention real devices, real metrics, and real users.",
+  "examples": [
+    "Tell me about a time you made a page noticeably faster. How did you know where the time was going, and what did you give up?",
+    "A form on a checkout page sometimes loses what the user typed. How do you track it down?",
+    "Walk me through how you made a recent feature usable with only a keyboard. How did you test it?",
+    "You and a designer disagreed about an interaction. What was the disagreement, and what shipped?",
+    "Design the client side of a collaborative document editor. What lives on the client, and what happens when the network drops?"
+  ]
+}

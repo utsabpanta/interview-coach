@@ -53,6 +53,11 @@ export class MockLLM implements LLM {
       improvements: ["Name your own decision.", "Add the result."],
       rewrite: "I called a pause, re-planned the migration, and shipped it [when].",
       fix: { headline: "Say what you did, not what the team did.", detail: "A panel is hiring you, so name your own call.", quote: "we decided" },
+      notes: [
+        { quote: "I made the call to pause", note: "Strong: this names a decision that was yours." },
+        { quote: "we rebuilt", note: "Say what you did in the rebuild, not what the team did." },
+        { quote: "words the candidate never said", note: "This point quotes nothing real, so it must not be shown." },
+      ],
       changes: retry ? ['You named your decision: "I called a pause".', "Still missing: the result."] : undefined,
     };
     return feedback as T;

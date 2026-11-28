@@ -44,6 +44,9 @@ Without `npm link`, run commands as `npm run dev -- <command>`.
 # Behavioral mock interview, 5 questions, tailored to a role
 coach mock --jd job.md --resume resume.md
 
+# Use a community role pack from the packs/ directory
+coach mock --type technical --pack backend-engineer --jd job.md
+
 # System design round, 2 questions, no follow-ups
 coach mock --type system-design --questions 2 --no-follow-ups
 ```

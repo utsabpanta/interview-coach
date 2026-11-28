@@ -1,6 +1,7 @@
 import { OpenAICompatLLM } from "../../../src/openai.js";
 import type { LLM } from "../../../src/types.js";
 import { BrowserLLM } from "./llm.js";
+import { ON_DEVICE_MODELS, OnDeviceLLM } from "./localLlm.js";
 import type { ProviderId, Settings } from "./types.js";
 
 export interface Provider {
@@ -52,6 +53,14 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     needsKey: false,
     note: "Runs open models on your own computer, so the job posting and your answers are not sent to a model provider. Speech is still transcribed by your browser.",
   },
+  ondevice: {
+    label: "On this device",
+    tag: "no key, experimental",
+    baseUrl: "",
+    defaultModel: ON_DEVICE_MODELS[0].id,
+    needsKey: false,
+    note: "Runs a small open model inside your browser. No key, no account, and nothing is sent to a model provider. The first use downloads about 2 GB and needs a computer with a recent graphics chip and Chrome or Edge. Feedback is rougher than with a hosted model.",
+  },
   anthropic: {
     label: "Anthropic Claude",
     tag: "paid",
@@ -89,7 +98,7 @@ export function activeKey(s: Settings): string {
 export function missing(s: Settings): string | null {
   const p = PROVIDERS[s.provider];
   if (p.needsKey && !activeKey(s)) return `Add your ${p.label} API key to start.`;
-  if (s.provider !== "anthropic" && !activeBaseUrl(s)) return "Enter the server address to start.";
+  if (s.provider !== "anthropic" && s.provider !== "ondevice" && !activeBaseUrl(s)) return "Enter the server address to start.";
   if (!activeModel(s)) return "Enter a model name to start.";
   return null;
 }
@@ -97,5 +106,6 @@ export function missing(s: Settings): string | null {
 export function makeLLM(s: Settings): LLM | null {
   if (missing(s)) return null;
   if (s.provider === "anthropic") return new BrowserLLM(activeKey(s), activeModel(s));
+  if (s.provider === "ondevice") return new OnDeviceLLM(activeModel(s));
   return new OpenAICompatLLM({ baseUrl: activeBaseUrl(s), apiKey: activeKey(s) || undefined, model: activeModel(s) });
 }

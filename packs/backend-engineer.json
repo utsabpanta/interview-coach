@@ -1,0 +1,18 @@
+{
+  "id": "backend-engineer",
+  "name": "Backend engineer",
+  "description": "Services, data, and reliability: for engineers who build and run server-side systems.",
+  "types": [
+    "behavioral",
+    "technical",
+    "system-design"
+  ],
+  "guidance": "Probe for ownership of systems in production, not just features shipped. Good candidates can explain a service they ran: its traffic, its failure modes, how they knew it was healthy, and what they did when it was not. Ask about data modeling decisions and what they would change now. Push on trade-offs with real constraints: consistency against availability, build against buy, cost against latency. For incidents, ask what they checked first and why, and what they changed afterward so it could not recur. Ask how they review AI-generated code that touches data or concurrency, and where they refuse to rely on it. Weak answers stay at the level of tools and frameworks; strong answers name numbers, alternatives considered, and what broke.",
+  "examples": [
+    "Walk me through a service you owned in production. What did a bad day for it look like, and how did you find out?",
+    "A write endpoint that was fast yesterday is timing out today, and nothing was deployed. Talk me through your first fifteen minutes.",
+    "Tell me about a schema or data model decision you regret. What would you do differently, and what would migrating cost?",
+    "An AI assistant wrote a database migration for you. What do you check before you run it against production?",
+    "Design an idempotent payment API that survives client retries and a crash halfway through. What do you store, and when?"
+  ]
+}

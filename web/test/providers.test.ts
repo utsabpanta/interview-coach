@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { OpenAICompatLLM } from "../../src/openai.js";
 import { BrowserLLM } from "../src/lib/llm.js";
+import { ON_DEVICE_MODELS, onDeviceSupported, OnDeviceLLM } from "../src/lib/localLlm.js";
 import { activeBaseUrl, activeModel, makeLLM, missing, PROVIDER_IDS, PROVIDERS } from "../src/lib/providers.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../src/lib/store.js";
 import type { Settings } from "../src/lib/types.js";
@@ -12,7 +13,7 @@ describe("providers", () => {
     for (const id of PROVIDER_IDS) {
       const p = PROVIDERS[id];
       expect(p.label && p.note).toBeTruthy();
-      if (id !== "anthropic" && id !== "custom") expect(p.baseUrl).toMatch(/^https?:\/\/.+\/v1/);
+      if (id !== "anthropic" && id !== "custom" && id !== "ondevice") expect(p.baseUrl).toMatch(/^https?:\/\/.+\/v1/);
       if (p.needsKey) expect(p.keyUrl).toMatch(/^https:\/\//);
     }
   });
@@ -38,6 +39,9 @@ describe("providers", () => {
     expect(makeLLM(settings({ provider: "groq", keys: { groq: "k" } }))).toBeInstanceOf(OpenAICompatLLM);
     expect(makeLLM(settings({ provider: "ollama" }))).toBeInstanceOf(OpenAICompatLLM);
     expect(makeLLM(settings({ provider: "anthropic", keys: { anthropic: "k" } }))).toBeInstanceOf(BrowserLLM);
+    // The on-device model needs no key and no address.
+    expect(missing(settings({ provider: "ondevice" }))).toBeNull();
+    expect(makeLLM(settings({ provider: "ondevice" }))).toBeInstanceOf(OnDeviceLLM);
   });
 });
 
@@ -68,5 +72,20 @@ describe("settings storage", () => {
     expect(loadSettings()).toMatchObject({ provider: "gemini", keys: { gemini: "g" } });
     localStorage.setItem("callback.settings.v1", JSON.stringify({ provider: "nope" }));
     expect(loadSettings().provider).toBe("groq");
+  });
+});
+
+describe("on-device model", () => {
+  it("offers a small default model", () => {
+    expect(PROVIDERS.ondevice.defaultModel).toBe(ON_DEVICE_MODELS[0].id);
+    expect(PROVIDERS.ondevice.needsKey).toBe(false);
+  });
+
+  it("explains itself where the browser cannot run a model", async () => {
+    // The test environment has no WebGPU, like an unsupported browser.
+    expect(onDeviceSupported()).toBe(false);
+    const llm = new OnDeviceLLM(ON_DEVICE_MODELS[0].id);
+    await expect(llm.text("s", "u")).rejects.toThrow(/WebGPU is not available/);
+    await expect(llm.structured("s", "u", { name: "t", description: "d", schema: {} })).rejects.toThrow(/choose another provider/);
   });
 });

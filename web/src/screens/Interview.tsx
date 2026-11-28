@@ -70,7 +70,15 @@ export function Interview({
 }) {
   const topic = session.plan[session.index];
   const closing = topic.kind === "candidate-questions";
-  const ctx: Context = { type: session.type, jobDescription: session.setup.jobDescription || undefined, resume: session.setup.resume || undefined };
+  /** Technical and design rounds get a notes pad the interviewer can see. */
+  const hasPad = session.type !== "behavioral" && !closing;
+  const [workspace, setWorkspace] = useState("");
+  const ctx: Context = {
+    type: session.type,
+    jobDescription: session.setup.jobDescription || undefined,
+    resume: session.setup.resume || undefined,
+    workspace: hasPad ? workspace : undefined,
+  };
   const maxTurns = settings.followUps ? ROUND_SHAPE[session.type].turns : 1;
   // The interviewer introduces the round once, before the first question.
   const intro = session.index === 0 && !previous && session.intro ? `${session.intro} ` : "";
@@ -338,6 +346,7 @@ export function Interview({
         feedback,
         metrics: analyzeDelivery(text, session.type),
         pacing: { ...pacing, notes, wordsPerMinute: measured ? pacing.wordsPerMinute : 0 },
+        ...(hasPad && workspace.trim() ? { workspace: workspace.trim() } : {}),
       });
     } catch (err) {
       if (!alive.current || mine !== request.current) return;
@@ -639,6 +648,28 @@ export function Interview({
                 </p>
               </>
             )}
+
+            {hasPad ? (
+              <details className="pad" open={workspace.length > 0 || undefined}>
+                <summary>Notes pad: sketch an outline, pseudo-code, or a design in text</summary>
+                <label htmlFor="pad" className="visually-hidden">
+                  Notes pad, shared with the interviewer
+                </label>
+                <textarea
+                  id="pad"
+                  rows={7}
+                  spellCheck={false}
+                  placeholder={"client -> API gateway -> rate limiter -> service\n\nrequirements:\n- ..."}
+                  value={workspace}
+                  onChange={(e) => {
+                    setWorkspace(e.target.value);
+                    // Writing counts as still working, so the interviewer does not cut in.
+                    lastWords.current = Date.now();
+                  }}
+                />
+                <p className="hint">The interviewer sees this with each of your replies, and it counts toward your score.</p>
+              </details>
+            ) : null}
 
             {discarded ? (
               <p className="auto-reply">

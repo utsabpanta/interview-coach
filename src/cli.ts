@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { Command, InvalidArgumentError } from "commander";
-import { buildStories, evaluate, INTERVIEW_TYPES, type InterviewType } from "./coach.js";
+import { fileURLToPath } from "node:url";
+import { buildStories, evaluate, INTERVIEW_TYPES, validatePack, type InterviewType, type QuestionPack } from "./coach.js";
 import { createLLM } from "./llm.js";
 import { analyzeDelivery } from "./metrics.js";
 import { runMock, type IO } from "./mock.js";
@@ -47,6 +48,21 @@ async function readOptional(file?: string): Promise<string | undefined> {
   return file ? (await readFile(file, "utf8")).trim() : undefined;
 }
 
+/** Loads a role pack by id from the repository's packs/ directory. */
+async function loadPack(id: string): Promise<QuestionPack> {
+  if (!/^[a-z0-9-]+$/.test(id)) throw new Error("A pack id is lowercase words joined by hyphens, for example backend-engineer.");
+  const file = fileURLToPath(new URL(`../packs/${id}.json`, import.meta.url));
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(file, "utf8"));
+  } catch {
+    throw new Error(`No pack named "${id}" in the packs/ directory.`);
+  }
+  const problems = validatePack(raw);
+  if (problems.length) throw new Error(`The pack "${id}" is not valid: ${problems.join("; ")}.`);
+  return raw as QuestionPack;
+}
+
 /** Reads multi-line answers from the terminal; an empty line ends an answer. */
 function terminalIO(): IO & { close(): void } {
   const rl = readline.createInterface({ input: process.stdin });
@@ -84,6 +100,7 @@ program
   .option("-r, --resume <file>", "your resume, as a text or Markdown file")
   .option("-s, --stories <file>", "rehearse a story bank: every question targets one of its stories")
   .option("--story <text>", "with --stories, only rehearse stories matching this text")
+  .option("-p, --pack <id>", "role pack from the packs/ directory, for example backend-engineer")
   .option("-n, --questions <count>", "number of questions", intBetween(1, 15), 5)
   .option("--no-follow-ups", "one answer per question, with no back-and-forth")
   .option("-o, --out <dir>", "directory for saved sessions", "sessions")
@@ -100,6 +117,7 @@ program
           jobDescription: await readOptional(opts.jd),
           resume: await readOptional(opts.resume),
           stories: opts.stories ? await readRequired(opts.stories) : undefined,
+          pack: opts.pack ? await loadPack(opts.pack) : undefined,
           storyFocus: opts.story,
         },
         { count: opts.questions, followUps: opts.followUps },

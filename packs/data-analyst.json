@@ -1,0 +1,17 @@
+{
+  "id": "data-analyst",
+  "name": "Data analyst or data scientist",
+  "description": "Questions, evidence, and communication: for people who turn data into decisions.",
+  "types": [
+    "behavioral",
+    "technical"
+  ],
+  "guidance": "Probe for the path from a vague business question to a decision someone made. Ask how they framed the question, what data they had, what was wrong with it, and how they knew. Push on rigor in plain language: how they would tell a real effect from noise, what could confound the result, and what they would check before presenting. Ask about a time their analysis said something unwelcome and how they delivered it. For technical scenarios, describe a metric that moved unexpectedly and have them investigate aloud. Ask how they verify analysis or SQL written with an AI assistant. Strong answers include the caveats they gave, the decision that followed, and what they would do differently; weak answers list tools and techniques.",
+  "examples": [
+    "A key metric dropped eight percent overnight. Walk me through how you work out whether it is real.",
+    "Tell me about an analysis that changed a decision. What was the question, and what was messy about the data?",
+    "Describe a time your results were not what a stakeholder wanted to hear. How did you present them?",
+    "An experiment shows a lift, but only in one country. What do you check before recommending a rollout?",
+    "An AI assistant wrote a long query for you and the numbers look plausible. How do you convince yourself they are right?"
+  ]
+}

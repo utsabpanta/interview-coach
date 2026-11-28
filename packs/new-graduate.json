@@ -1,0 +1,17 @@
+{
+  "id": "new-graduate",
+  "name": "New graduate or career changer",
+  "description": "Projects, learning, and potential: for people interviewing for a first role in a field.",
+  "types": [
+    "behavioral",
+    "technical"
+  ],
+  "guidance": "Do not expect production experience. Probe projects from courses, internships, personal work, or a previous career, and treat them with the same seriousness: what they built, what was hard, and what they would do differently. Look for how they learn: something they did not understand at first and how they got unstuck. Ask about working with others, including a teammate who did not pull their weight. For technical scenarios, use small concrete problems and reward clear reasoning and good questions over polish. Ask how they use AI tools to learn without letting the tool do the understanding for them. Encourage clarifying questions, and give a hint if they are stuck. Strong answers show curiosity and honest reflection; weak answers recite coursework.",
+  "examples": [
+    "Tell me about a project you are proud of. What was the hardest part, and how did you get past it?",
+    "Describe something you found confusing when you first learned it. How did you finally understand it?",
+    "Tell me about a group project where the work was not shared evenly. What did you do?",
+    "A small program you wrote works on your machine and fails on a teammate's. How do you figure out why?",
+    "How do you use AI tools when you are learning something new, and how do you make sure you actually understand it?"
+  ]
+}

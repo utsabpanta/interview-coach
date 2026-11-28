@@ -1,4 +1,4 @@
-import { averageScore, type Exchange } from "../../../src/coach.js";
+import { averageScore, type CoachingNote, type Exchange } from "../../../src/coach.js";
 import type { Round, Session, SessionSummary } from "./types.js";
 
 /**
@@ -144,6 +144,52 @@ export function saidByCandidate(quote: string | undefined, exchanges: Exchange[]
   const q = normalize(quote ?? "");
   if (q.length < 3) return false;
   return normalize(exchanges.map((e) => e.answer).join(" ")).includes(q);
+}
+
+export interface Segment {
+  text: string;
+  /** 1-based number of the coaching point this stretch of text belongs to. */
+  point?: number;
+}
+
+/**
+ * Splits an answer into plain and highlighted stretches, one highlight per
+ * coaching point whose quote really appears in the answer. Points that quote
+ * something the candidate did not say are not shown at all.
+ */
+export function annotate(answer: string, notes: CoachingNote[]): { segments: Segment[]; shown: Array<CoachingNote & { point: number }> } {
+  const lower = answer.toLowerCase();
+  const spans: Array<{ start: number; end: number; point: number; note: CoachingNote }> = [];
+  notes.forEach((note, i) => {
+    const quote = note.quote.trim().replace(/^["'\u201c]+|["'\u201d.,;:!?]+$/g, "");
+    if (quote.length < 3) return;
+    const start = lower.indexOf(quote.toLowerCase());
+    if (start === -1) return;
+    const end = start + quote.length;
+    if (spans.some((s) => start < s.end && end > s.start)) return;
+    spans.push({ start, end, point: i + 1, note });
+  });
+  spans.sort((a, b) => a.start - b.start);
+  // Number the points in the order they appear, so the reader meets 1 before 2.
+  spans.forEach((s, i) => (s.point = i + 1));
+
+  const segments: Segment[] = [];
+  let at = 0;
+  for (const s of spans) {
+    if (s.start > at) segments.push({ text: answer.slice(at, s.start) });
+    segments.push({ text: answer.slice(s.start, s.end), point: s.point });
+    at = s.end;
+  }
+  if (at < answer.length || segments.length === 0) segments.push({ text: answer.slice(at) });
+  return { segments, shown: spans.map((s) => ({ ...s.note, point: s.point })) };
+}
+
+/** "um ×3, you know ×2", most frequent first; empty when there were none. */
+export function fillerBreakdown(fillers: Record<string, number>): string {
+  return Object.entries(fillers)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([word, n]) => `${word} \u00d7${n}`)
+    .join(", ");
 }
 
 export function clock(seconds: number): string {

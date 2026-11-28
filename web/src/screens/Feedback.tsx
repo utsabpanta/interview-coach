@@ -1,6 +1,6 @@
 import { averageScore, DIMENSIONS, type Feedback as FeedbackData } from "../../../src/coach.js";
 import { Header, Icon, ScoreBars } from "../components.js";
-import { clock, saidByCandidate, titleCase } from "../lib/score.js";
+import { annotate, clock, fillerBreakdown, saidByCandidate, titleCase } from "../lib/score.js";
 import type { Attempt, Round, Session } from "../lib/types.js";
 
 function bars(f: FeedbackData): Array<[string, number]> {
@@ -21,6 +21,7 @@ function AttemptCard({ title, attempt, tone }: { title: string; attempt: Attempt
       <p className="muted small-text">
         {attempt.metrics.words} words, about {clock(attempt.pacing.durationSeconds)} spoken, {attempt.metrics.fillerCount} filler{" "}
         {attempt.metrics.fillerCount === 1 ? "word" : "words"}
+        {attempt.metrics.fillerCount ? ` (${fillerBreakdown(attempt.metrics.fillers)})` : ""}
       </p>
     </div>
   );
@@ -46,6 +47,10 @@ export function Feedback({
   const fix = latest.feedback.fix ?? { headline: latest.feedback.improvements[0] ?? "Tighten the answer.", detail: "" };
   const delta = before ? Math.round((averageScore(latest.feedback) - averageScore(before.feedback)) * 10) / 10 : 0;
   const changes = latest.feedback.changes ?? [];
+  // Coaching points are attached to the exact words they quote; a point whose
+  // quote the candidate did not say is not shown.
+  const annotated = latest.exchanges.map((exchange) => ({ exchange, ...annotate(exchange.answer, latest.feedback.notes ?? []) }));
+  const shownNotes = annotated.some((a) => a.shown.length > 0);
 
   return (
     <div className="page">
@@ -123,23 +128,48 @@ export function Feedback({
           )}
         </section>
 
-        <details className="card rewrite">
-          <summary>Review the conversation</summary>
+        <section className="card review" aria-label="The conversation, with coaching points">
+          <h2>The conversation{shownNotes ? ", with coaching points" : ""}</h2>
           <ol className="thread in-card">
-            {latest.exchanges.map((e, i) => (
+            {annotated.map(({ exchange, segments, shown }, i) => (
               <li key={i}>
                 <p className="said interviewer">
                   <span className="who">Interviewer</span>
-                  {e.question}
+                  {exchange.question}
                 </p>
                 <p className="said you">
                   <span className="who">You</span>
-                  {e.answer}
+                  {segments.map((seg, j) =>
+                    seg.point ? (
+                      <mark key={j} className="point">
+                        {seg.text}
+                        <sup>{seg.point}</sup>
+                      </mark>
+                    ) : (
+                      <span key={j}>{seg.text}</span>
+                    ),
+                  )}
                 </p>
+                {shown.length ? (
+                  <ul className="points">
+                    {shown.map((n) => (
+                      <li key={n.point}>
+                        <span className="point-n">{n.point}</span>
+                        {n.note}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             ))}
           </ol>
-        </details>
+          {latest.workspace ? (
+            <>
+              <h2>Your notes pad</h2>
+              <pre className="pad-view">{latest.workspace}</pre>
+            </>
+          ) : null}
+        </section>
 
         <details className="card rewrite">
           <summary>{closing ? "See sharper questions you could ask" : "See a stronger version of your answer"}</summary>

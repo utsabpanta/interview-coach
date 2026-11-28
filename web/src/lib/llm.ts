@@ -47,6 +47,9 @@ export class BrowserLLM implements LLM {
 export function explainError(err: unknown): string {
   const status = (err as { status?: number })?.status;
   const detail = err instanceof Error ? err.message : "";
+  if (/on-device model/i.test(detail)) {
+    return `${detail} Check your connection and that this computer has a recent graphics chip, or choose another provider in Settings.`;
+  }
   if (status === 401) return "The model provider rejected the API key. Check it in Settings.";
   if (status === 403) return "This API key is not allowed to use the selected model. Check the key or the model in Settings.";
   if (status === 404) return "The model provider does not recognize the model name. Pick another in Settings.";
