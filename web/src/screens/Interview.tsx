@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { evaluate, interviewerTurn, ROUND_SHAPE, type Context, type Exchange } from "../../../src/coach.js";
+import { detectIntent, pauseBeforeReply, stripSignOff } from "../../../src/intents.js";
 import { analyzeDelivery, countWords, LENGTH_TARGETS } from "../../../src/metrics.js";
 import { analyzePacing } from "../../../src/pacing.js";
 import type { LLM } from "../../../src/types.js";
@@ -18,6 +19,10 @@ import type { Attempt, Session, Settings } from "../lib/types.js";
 type Phase = "asking" | "listening" | "paused" | "thinking" | "evaluating" | "failed";
 
 const SPEAKING_WPM = 140;
+// Requests to rephrase or clarify do not use up a turn, within reason.
+const MAX_ASIDES = 3;
+// Show the "about to reply" countdown for this long before the interviewer takes its turn.
+const COUNTDOWN_MS = 2500;
 const LENGTH_NOTE = /^(Short|Long):/;
 
 export function Interview({
@@ -55,8 +60,18 @@ export function Interview({
   const [seconds, setSeconds] = useState(0);
   const [turnStart, setTurnStart] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Seconds until the interviewer replies on its own, while the candidate is silent. */
+  const [countdown, setCountdown] = useState<number | null>(null);
+  /** The candidate asked for more time on this turn, so do not reply automatically. */
+  const [holding, setHolding] = useState(false);
 
   const alive = useRef(true);
+  const lastHeard = useRef(0);
+  const heardText = useRef("");
+  const asides = useRef(0);
+  /** Identifies the turn being listened to, so late results from an earlier turn are ignored. */
+  const turnToken = useRef<object | null>(null);
+  const sendRef = useRef<(wrapUp?: boolean) => Promise<void>>(async () => {});
   const exchanges = useRef<Exchange[]>([]);
   const recognizer = useRef<Recognizer | null>(null);
   const cancelSpeech = useRef<() => void>(() => {});
@@ -83,14 +98,26 @@ export function Interview({
       setInterim("");
       setTyped("");
       setTurnStart(secondsRef.current);
+      setCountdown(null);
+      setHolding(false);
+      heardText.current = "";
+      const token = {};
+      turnToken.current = token;
       recognizer.current = createRecognizer(
         (f, i) => {
-          if (!alive.current) return;
+          // Speech recognition can deliver words after it was stopped; those belong to a turn that is over.
+          if (!alive.current || turnToken.current !== token) return;
+          const heard = `${f} ${i}`.trim();
+          // Any new words mean the candidate is still talking.
+          if (heard !== heardText.current) {
+            heardText.current = heard;
+            lastHeard.current = Date.now();
+          }
           setFinalText(f);
           setInterim(i);
         },
         (reason) => {
-          if (!alive.current) return;
+          if (!alive.current || turnToken.current !== token) return;
           setNotice(reason);
           setTyping(true);
           usedTyping.current = true;
@@ -131,10 +158,35 @@ export function Interview({
     if (thread.length) threadEnd.current?.scrollIntoView?.({ block: "nearest" });
   }, [thread.length, prompt]);
 
+  // Hands-free turn-taking: when the candidate has said something and then
+  // goes quiet, the interviewer takes its turn without a button press.
+  useEffect(() => {
+    if (phase !== "listening" || typing || holding || !settings.handsFree) {
+      setCountdown(null);
+      return;
+    }
+    const id = window.setInterval(() => {
+      const heard = heardText.current;
+      if (!heard) {
+        setCountdown(null);
+        return;
+      }
+      const remaining = pauseBeforeReply(heard) - (Date.now() - lastHeard.current);
+      if (remaining <= 0) {
+        window.clearInterval(id);
+        setCountdown(null);
+        void sendRef.current();
+      } else {
+        setCountdown(remaining <= COUNTDOWN_MS ? Math.ceil(remaining / 1000) : null);
+      }
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [phase, typing, holding, settings.handsFree]);
+
   const levels = useMicLevels(phase === "listening" && !typing);
   const spoken = `${finalText} ${interim}`.trim();
   const current = typing ? typed.trim() : spoken;
-  const allText = [...thread.map((e) => e.answer), current].join("\n").trim();
+  const allText = [...thread.filter((e) => !e.aside).map((e) => e.answer), current].join("\n").trim();
   const words = countWords(allText);
   const liveWpm = !usedTyping.current && seconds >= 8 ? Math.round(words / (seconds / 60)) : null;
   const fillers = analyzeDelivery(allText, session.type).fillerCount;
@@ -157,6 +209,7 @@ export function Interview({
     setNotice(null);
     try {
       const said = exchanges.current;
+      const answers = said.filter((e) => !e.aside);
       const feedback = await evaluate(
         llm,
         ctx,
@@ -166,12 +219,12 @@ export function Interview({
         topic,
       );
       if (!alive.current) return;
-      const text = said.map((e) => e.answer).join("\n");
+      const text = answers.map((e) => e.answer).join("\n");
       // Typing speed says nothing about speaking pace, so estimate from length instead.
       const duration = usedTyping.current ? (countWords(text) / SPEAKING_WPM) * 60 : secondsRef.current;
       const pacing = analyzePacing({ text, duration, segments: [] }, session.type);
       // Length targets describe a single answer, not a whole conversation.
-      const multi = said.length > 1 || closing;
+      const multi = answers.length > 1 || closing;
       const notes = pacing.notes.filter((n) => !(multi && LENGTH_NOTE.test(n)) && !(usedTyping.current && /pace/i.test(n)));
       onComplete({
         exchanges: said,
@@ -192,23 +245,44 @@ export function Interview({
       setNotice(closing ? "Ask a question first, or skip this part." : "Say or type a reply first.");
       return;
     }
+    // "Can you repeat the question?" is answered on the spot: it is not an
+    // answer, so it is not recorded, scored, or counted as a turn.
+    const intent = wrapUp ? null : detectIntent(current);
+    if (intent === "repeat") {
+      begin(prompt);
+      setNotice(settings.speakQuestions ? null : "The question is shown again above. Turn on \"Read questions aloud\" in Settings to hear it.");
+      return;
+    }
+    const answer = intent === "done" ? stripSignOff(current) || current : current;
+
     recognizer.current?.stop();
+    turnToken.current = null;
     cancelSpeech.current();
     setNotice(null);
-    if (current) {
-      exchanges.current = [...exchanges.current, { question: prompt, answer: current }];
+    setCountdown(null);
+    if (answer) {
+      exchanges.current = [...exchanges.current, { question: prompt, answer }];
       setThread(exchanges.current);
       setFinalText("");
       setInterim("");
       setTyped("");
+      heardText.current = "";
     }
 
-    const turnsLeft = maxTurns - exchanges.current.length;
-    if (!wrapUp && current && turnsLeft > 0) {
+    const answered = () => exchanges.current.filter((e) => !e.aside).length;
+    if (!wrapUp && answer && maxTurns > 1) {
       setPhase("thinking");
       try {
-        const next = await interviewerTurn(llm, ctx, topic, exchanges.current, turnsLeft);
+        const next = await interviewerTurn(llm, ctx, topic, exchanges.current, maxTurns - answered());
         if (!alive.current) return;
+        if (next.aside && asides.current < MAX_ASIDES) {
+          // The candidate asked to rephrase or clarify: answer them and keep their turn.
+          asides.current += 1;
+          exchanges.current = exchanges.current.map((e, i, all) => (i === all.length - 1 ? { ...e, aside: true } : e));
+          setThread(exchanges.current);
+          begin(next.reply);
+          return;
+        }
         if (!next.done) {
           begin(next.reply);
           return;
@@ -223,8 +297,15 @@ export function Interview({
       }
       if (!alive.current) return;
     }
+    if (answered() === 0) {
+      // Only clarifications so far: there is nothing to score yet.
+      begin(prompt);
+      setNotice(closing ? "Ask a question first, or skip this part." : "Answer the question first, or skip it.");
+      return;
+    }
     await evaluateNow();
   };
+  sendRef.current = send;
 
   const togglePause = () => {
     if (phase === "listening") {
@@ -264,7 +345,7 @@ export function Interview({
               : "Could not score that";
   const answering = phase === "listening" || phase === "paused";
   const busy = phase === "thinking" || phase === "evaluating";
-  const turnNumber = thread.length + 1;
+  const turnNumber = thread.filter((e) => !e.aside).length + 1;
   const lastTurn = turnNumber >= maxTurns;
 
   return (
@@ -378,12 +459,27 @@ export function Interview({
                         ? "Listen, then reply out loud."
                         : closing
                           ? "Ask your question out loud."
-                          : "Start speaking. You can also ask the interviewer a question."}
+                          : 'Start speaking. You can ask a question back, or say "can you repeat the question?"'}
                     </span>
                   )}
                 </p>
               </>
             )}
+
+            {countdown !== null ? (
+              <p className="auto-reply" role="status">
+                <span>
+                  Heard a pause. The interviewer replies in {countdown}s; keep talking to continue.
+                </span>
+                <button type="button" className="link-btn" onClick={() => setHolding(true)}>
+                  I'm still thinking
+                </button>
+              </p>
+            ) : holding && phase === "listening" && !typing ? (
+              <p className="auto-reply" role="status">
+                <span>Take your time. Press Send reply when you are done.</span>
+              </p>
+            ) : null}
 
             {notice ? (
               <p className="notice" role="alert">

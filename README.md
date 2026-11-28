@@ -17,6 +17,7 @@ signup, and has no server.
 ## Why Callback
 
 - **A real conversation.** The interviewer reacts to what you say, answers your clarifying questions, pushes back on vague claims, and moves on when a topic is covered. You talk; your words are transcribed as you speak.
+- **It listens.** Stop talking and the interviewer takes its turn, with no button to press. Say "can you repeat the question?" or "could you rephrase that?" and it does.
 - **Interviews the way they are run now.** Questions are practical and close to the job: project deep dives, production incidents, reviewing AI-generated code, designing AI-powered features, and how you work with AI tools. No brainteasers, trivia, or "greatest weakness".
 - **Your turn to ask.** Each round ends with your questions for the interviewer, and those are scored too.
 - **One fix, then retry.** Each conversation is scored on structure, specificity, relevance, and concision, with a single most important change and a before-and-after comparison when you try again.
@@ -124,6 +125,24 @@ A turn is one thing you say. After each, the interviewer replies: it may answer 
 asked, probe further, change a requirement, or wrap up the topic. You can end a topic early with
 **Finish this question**. Turning off two-way conversation in Settings gives one answer per
 question instead.
+
+### Talking to the interviewer
+
+The interview is hands-free by default. When you stop talking, a short countdown appears and the
+interviewer replies; keep talking and the countdown resets.
+
+| You say | What happens |
+| --- | --- |
+| An answer, then silence for about 3.5 seconds | The interviewer responds to it. |
+| A short question, such as "what scale should I assume?" | It answers within about a second and a half. |
+| "Can you repeat the question?", "Sorry, I didn't catch that" | It says the question again. Nothing is recorded or scored. |
+| "Could you rephrase that?", "What do you mean by that?" | It rephrases or clarifies. This does not use up one of your turns or lower your score. |
+| "...and that's my answer", "I'm done" | It takes its turn right away, and the sign-off is left out of your answer. |
+
+Need longer to think? Press **I'm still thinking** during the countdown, or pause the microphone,
+and the interviewer waits until you press **Send reply**. Hands-free can be turned off in Settings.
+The microphone is off while the interviewer is speaking, so wait for it to finish, or press
+**Start answering** to cut in.
 
 Question quality depends on the model you choose. The interviewer is told today's date and asked
 to follow current practice, but a small or older model will still drift toward generic questions.

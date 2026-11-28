@@ -267,6 +267,11 @@ export function SettingsDialog({
           Two-way conversation: the interviewer replies and probes
         </label>
 
+        <label className="check">
+          <input type="checkbox" checked={draft.handsFree} onChange={(e) => setDraft({ ...draft, handsFree: e.target.checked })} />
+          Hands-free: the interviewer replies when I stop talking
+        </label>
+
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>
             Cancel

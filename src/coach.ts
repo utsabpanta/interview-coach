@@ -46,6 +46,8 @@ export interface PlannedQuestion {
 export interface Exchange {
   question: string;
   answer: string;
+  /** The candidate only asked the interviewer something (repeat, rephrase, clarify); not an answer. */
+  aside?: boolean;
 }
 
 export interface Feedback {
@@ -211,6 +213,8 @@ export interface InterviewerReply {
   reply: string;
   /** True when the interviewer is finished with this topic. */
   done: boolean;
+  /** True when the candidate's last message was only a request, so it should not use up a turn. */
+  aside: boolean;
 }
 
 const TURN_TOOL: ToolSpec = {
@@ -224,8 +228,13 @@ const TURN_TOOL: ToolSpec = {
         type: "boolean",
         description: "True when this topic is covered well enough, or the candidate is stuck or finished, and the interview should move to the next topic.",
       },
+      candidate_asked_only: {
+        type: "boolean",
+        description:
+          "True when the candidate's last message was only a request to you, with no answer in it: asking you to repeat or rephrase, to clarify what you mean, or for a moment to think.",
+      },
     },
-    required: ["reply", "move_on"],
+    required: ["reply", "move_on", "candidate_asked_only"],
   },
 };
 
@@ -253,6 +262,10 @@ does not say, describe what is typical for such a team and say you would confirm
 Then invite the next question. If the candidate has nothing more to ask, set move_on to true and
 close the interview warmly in one sentence.`
     : `Give your next turn. Rules:
+- Listen first. If the candidate asked you to repeat the question, say it again. If they asked you
+  to rephrase or did not understand, put it in simpler, different words. If they asked for a moment
+  to think, tell them to take their time. Do none of the things below in that case, and set
+  candidate_asked_only to true.
 - React to what the candidate just said, briefly and specifically, the way a person would. Do not
   praise, grade, or summarize their answer back to them.
 - If the candidate asked you something (a clarification, a requirement, a number, what you meant),
@@ -261,8 +274,8 @@ close the interview warmly in one sentence.`
 - Then ask one thing: probe the vaguest claim, the missing result, their own part in it, or a
   trade-off; push back if something does not add up; in a technical or design discussion, add a
   constraint or change a requirement, or give a small hint if they are stuck.
-- One question at a time, no lists, and never a question you already asked. Do not answer your own
-  question or solve the problem for them.
+- One question at a time and no lists. Do not ask something they have already answered, and do not
+  answer your own question or solve the problem for them.
 - When the topic is covered, or no turns remain, set move_on to true and reply with a short closing
   remark only, with no question in it.`;
 
@@ -274,14 +287,19 @@ You are assessing: ${topic.competency}
 ${renderConversation(exchanges)}
 </conversation>
 
+The first thing you asked on this topic was: ${exchanges[0]?.question ?? topic.question}
+
 Turns the candidate has left on this topic after your reply: ${Math.max(0, turnsLeft)}.
 
 ${rules}`;
 
-  const raw = await llm.structured<{ reply?: unknown; move_on?: unknown }>(INTERVIEWER, user, TURN_TOOL, 600);
+  const raw = await llm.structured<{ reply?: unknown; move_on?: unknown; candidate_asked_only?: unknown }>(INTERVIEWER, user, TURN_TOOL, 600);
   const reply = typeof raw?.reply === "string" ? raw.reply.trim() : "";
-  const done = turnsLeft <= 0 || raw?.move_on === true || raw?.move_on === "true" || !reply;
-  return { reply, done };
+  const yes = (x: unknown) => x === true || x === "true";
+  // A request to repeat or clarify is answered and the conversation carries on, even on the last turn.
+  const aside = Boolean(reply) && !closing && yes(raw?.candidate_asked_only);
+  const done = !aside && (turnsLeft <= 0 || yes(raw?.move_on) || !reply);
+  return { reply, done, aside };
 }
 
 const scoreSchema = { type: "integer", minimum: 1, maximum: 5 };
@@ -349,8 +367,9 @@ questions they could have asked.`
     : `Evaluate how the candidate did across this whole conversation on one interview topic${topic ? ` (${topic.competency})` : ""}.
 Judge the substance of what they said, how they handled the interviewer's probing, and whether
 they got more specific under pressure or stayed vague. Asking the interviewer a good clarifying
-question counts in their favor, especially on a design or technical problem. The "rewrite" is a
-stronger version of their main answer.`
+question counts in their favor, especially on a design or technical problem. Asking the
+interviewer to repeat or rephrase something is normal and must not lower any score. The "rewrite"
+is a stronger version of their main answer.`
 }
 
 <transcript>

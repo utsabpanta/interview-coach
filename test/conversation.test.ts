@@ -26,7 +26,7 @@ describe("interviewerTurn", () => {
     const { llm, prompts } = scripted({ interviewer_reply: { reply: " Let's say a million users. What was your part? ", move_on: false } });
     const turn = await interviewerTurn(llm, { type: "behavioral" }, topic, exchanges, 2);
 
-    expect(turn).toEqual({ reply: "Let's say a million users. What was your part?", done: false });
+    expect(turn).toEqual({ reply: "Let's say a million users. What was your part?", done: false, aside: false });
     expect(prompts.interviewer_reply).toContain("Interviewer: Tell me about a recent project.\nCandidate: We rebuilt billing. What scale should I assume?");
     expect(prompts.interviewer_reply).toContain("answer it directly first");
     expect(prompts.interviewer_reply).toContain("after your reply: 2.");
@@ -36,7 +36,18 @@ describe("interviewerTurn", () => {
     const ctx = { type: "behavioral" as const };
     expect((await interviewerTurn(scripted({ interviewer_reply: { reply: "Thanks.", move_on: true } }).llm, ctx, topic, exchanges, 2)).done).toBe(true);
     expect((await interviewerTurn(scripted({ interviewer_reply: { reply: "And then?", move_on: false } }).llm, ctx, topic, exchanges, 0)).done).toBe(true);
-    expect(await interviewerTurn(scripted({ interviewer_reply: {} }).llm, ctx, topic, exchanges, 2)).toEqual({ reply: "", done: true });
+    expect(await interviewerTurn(scripted({ interviewer_reply: {} }).llm, ctx, topic, exchanges, 2)).toEqual({ reply: "", done: true, aside: false });
+  });
+
+  it("treats a request to repeat or rephrase as an aside, even on the last turn", async () => {
+    const { llm, prompts } = scripted({ interviewer_reply: { reply: "Sure. Which project of yours are you proudest of?", move_on: false, candidate_asked_only: true } });
+    const asked = [{ question: topic.question, answer: "Sorry, could you rephrase that?" }];
+    const turn = await interviewerTurn(llm, { type: "behavioral" }, topic, asked, 0);
+
+    expect(turn).toEqual({ reply: "Sure. Which project of yours are you proudest of?", done: false, aside: true });
+    expect(prompts.interviewer_reply).toContain("If the candidate asked you to repeat the question, say it again.");
+    expect(prompts.interviewer_reply).toContain("The first thing you asked on this topic was: Tell me about a recent project.");
+    expect(prompts.interviewer_reply).not.toContain("never a question you already asked");
   });
 
   it("answers the candidate's questions in the closing part", async () => {

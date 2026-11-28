@@ -34,8 +34,12 @@ export class MockLLM implements LLM {
       return plan as T;
     }
     if (tool.name === "interviewer_reply") {
-      const turns = (user.match(/^Candidate:/gm) ?? []).length;
-      const asked = /Candidate: [^\n]*\?\s*$/m.test(user);
+      const last = (user.match(/^Candidate: .*$/gm) ?? []).pop() ?? "";
+      if (/rephrase|what do you mean|clarify|don'?t understand/i.test(last)) {
+        return { reply: "Sure. Put simply: tell me about one thing you built recently, and what part of it was your call.", move_on: false, candidate_asked_only: true } as T;
+      }
+      const turns = (user.match(/^Candidate:/gm) ?? []).length - (user.match(/^Candidate: .*(rephrase|what do you mean|clarify)/gim) ?? []).length;
+      const asked = /\?\s*$/.test(last);
       const reply = { reply: `${asked ? "Fair question. Let's say about two million monthly users. " : "Got it. "}Which of those decisions was yours alone, and what did it cost you?`, move_on: false };
       return (turns >= 2 ? { reply: "Thanks, that gives me a clear picture.", move_on: true } : reply) as T;
     }

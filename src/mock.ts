@@ -1,4 +1,5 @@
 import { evaluate, interviewerTurn, planInterview, ROUND_SHAPE, type Context, type Exchange } from "./coach.js";
+import { detectIntent } from "./intents.js";
 import type { LLM } from "./llm.js";
 import { analyzeDelivery } from "./metrics.js";
 import { renderFeedback, type Session } from "./session.js";
@@ -16,6 +17,7 @@ export interface MockOptions {
 }
 
 const QUIT = "/quit";
+const MAX_ASIDES = 3;
 const SKIP = "/skip";
 
 export async function runMock(llm: LLM, io: IO, ctx: Context, opts: MockOptions): Promise<Session> {
@@ -41,26 +43,41 @@ export async function runMock(llm: LLM, io: IO, ctx: Context, opts: MockOptions)
 
     const exchanges: Exchange[] = [];
     let prompt = topic.question;
-    for (let turn = 0; turn < maxTurns; turn++) {
+    let asides = 0;
+    for (;;) {
       const answer = await io.ask("You");
       if (answer === null || answer === QUIT) {
         ended = true;
         break;
       }
       if (answer === SKIP || answer === "") break;
-      exchanges.push({ question: prompt, answer });
-      if (turn === maxTurns - 1) break;
 
-      const next = await interviewerTurn(llm, ctx, topic, exchanges, maxTurns - 1 - turn);
+      if (detectIntent(answer) === "repeat") {
+        io.say(`\n${prompt}\n`);
+        continue;
+      }
+      exchanges.push({ question: prompt, answer });
+      if (maxTurns === 1) break;
+
+      const answered = exchanges.filter((e) => !e.aside).length;
+      const next = await interviewerTurn(llm, ctx, topic, exchanges, maxTurns - answered);
       if (next.reply) io.say(`\n${next.reply}\n`);
+      if (next.aside && asides < MAX_ASIDES) {
+        // A request to rephrase or clarify does not use up one of the candidate's turns.
+        exchanges[exchanges.length - 1].aside = true;
+        asides++;
+        prompt = next.reply;
+        continue;
+      }
       if (next.done) break;
       prompt = next.reply;
     }
-    if (exchanges.length === 0) continue;
+    const answers = exchanges.filter((e) => !e.aside);
+    if (answers.length === 0) continue;
 
     io.say("\nEvaluating...");
     const feedback = await evaluate(llm, ctx, exchanges, topic.story, undefined, topic);
-    const metrics = analyzeDelivery(exchanges.map((e) => e.answer).join("\n"), ctx.type);
+    const metrics = analyzeDelivery(answers.map((e) => e.answer).join("\n"), ctx.type);
     session.rounds.push({ competency: topic.competency, story: topic.story, exchanges, feedback, metrics });
     // The target story is revealed only after the answer, so the rehearsal tests recall.
     io.say(`\n${topic.story ? `Target story: ${topic.story}\n` : ""}${renderFeedback(feedback, metrics)}\n`);

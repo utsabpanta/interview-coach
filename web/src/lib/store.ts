@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   baseUrls: {},
   speakQuestions: true,
   followUps: true,
+  handsFree: true,
 };
 
 function read<T>(key: string): T | null {

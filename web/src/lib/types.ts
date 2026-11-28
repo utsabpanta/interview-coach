@@ -59,4 +59,6 @@ export interface Settings {
   baseUrls: Partial<Record<ProviderId, string>>;
   speakQuestions: boolean;
   followUps: boolean;
+  /** The interviewer replies on its own when the candidate stops talking. */
+  handsFree: boolean;
 }

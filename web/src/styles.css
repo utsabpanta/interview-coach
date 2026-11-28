@@ -648,6 +648,23 @@ button:disabled {
   color: var(--text);
   border-bottom: 2px solid var(--accent);
 }
+.auto-reply {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(184, 243, 90, 0.35);
+  color: var(--text);
+  font-size: 15px;
+}
+.auto-reply .link-btn {
+  min-height: 32px;
+  color: var(--accent);
+}
 .side-card {
   display: flex;
   flex-direction: column;
