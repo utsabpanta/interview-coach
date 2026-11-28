@@ -7,7 +7,8 @@ import type { LLM } from "../../../src/types.js";
 import { Header, Icon } from "../components.js";
 import { explainError } from "../lib/llm.js";
 import { clock, roundScore, titleCase } from "../lib/score.js";
-import { createRecognizer, recognitionSupported, speak, useMicLevels, type Recognizer } from "../lib/speech.js";
+import { createRecognizer, recognitionSupported, useMicLevels, type Recognizer } from "../lib/speech.js";
+import { speak } from "../lib/voice.js";
 import type { Attempt, Session, Settings } from "../lib/types.js";
 
 /**
@@ -119,6 +120,20 @@ export function Interview({
   const resumable = useRef(false);
   const sendRef = useRef<(wrapUp?: boolean) => Promise<void>>(async () => {});
 
+  const voiceRef = useRef(settings);
+  voiceRef.current = settings;
+  /** Speaks in the chosen voice; if the natural voice fails, says so once and carries on. */
+  const say = useCallback((text: string, onEnd: () => void) => {
+    const s = voiceRef.current;
+    return speak(text, onEnd, {
+      voice: s.voice,
+      groqKey: s.keys.groq,
+      onFallback: (reason) => {
+        if (alive.current) setNotice(`The natural voice is unavailable, so the browser voice is being used. ${reason}`);
+      },
+    });
+  }, []);
+
   const listen = useCallback(() => {
     if (!alive.current) return;
     // Silence is counted from the moment listening starts, never from before a pause.
@@ -180,12 +195,12 @@ export function Interview({
       );
       if (settings.speakQuestions && !opts.silent) {
         setPhase("asking");
-        cancelSpeech.current = speak(opts.spoken ?? text, listen);
+        cancelSpeech.current = say(opts.spoken ?? text, listen);
       } else {
         listen();
       }
     },
-    [listen, settings.speakQuestions],
+    [listen, say, settings.speakQuestions],
   );
 
   useEffect(() => {
@@ -340,7 +355,7 @@ export function Interview({
       if (next.reply) {
         // A closing remark: say it while the conversation is being scored.
         setPrompt(next.reply);
-        if (settings.speakQuestions) cancelSpeech.current = speak(next.reply, () => {});
+        if (settings.speakQuestions) cancelSpeech.current = say(next.reply, () => {});
       }
     } catch (err) {
       if (!alive.current || mine !== request.current) return;
@@ -444,7 +459,7 @@ export function Interview({
   const hearAgain = () => {
     recognizer.current?.stop();
     setPhase("asking");
-    cancelSpeech.current = speak(prompt, listen);
+    cancelSpeech.current = say(prompt, listen);
   };
 
   const skipSpeech = () => {

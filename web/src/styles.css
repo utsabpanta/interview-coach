@@ -1079,6 +1079,19 @@ button:disabled {
 .dialog h2 {
   font-size: 22px;
 }
+.voice {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.voice legend {
+  padding: 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
 .check {
   display: flex;
   align-items: center;

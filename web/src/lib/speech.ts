@@ -120,34 +120,6 @@ export function createRecognizer(
   };
 }
 
-/** Speaks text aloud, then calls `onEnd`. Returns a function that cancels it. */
-export function speak(text: string, onEnd: () => void): () => void {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-    onEnd();
-    return () => {};
-  }
-  let finished = false;
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    window.clearTimeout(guard);
-    onEnd();
-  };
-  // Some browsers never fire `end`; do not leave the interview stuck.
-  const guard = window.setTimeout(finish, 4000 + text.length * 90);
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.onend = finish;
-  utterance.onerror = finish;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
-  return () => {
-    finished = true;
-    window.clearTimeout(guard);
-    window.speechSynthesis.cancel();
-  };
-}
-
 const IDLE = 0.08;
 
 /**

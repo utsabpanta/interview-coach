@@ -4,6 +4,7 @@ import { listModels } from "../../src/openai.js";
 import { explainError } from "./lib/llm.js";
 import { activeBaseUrl, activeKey, missing, PROVIDER_IDS, PROVIDERS } from "./lib/providers.js";
 import type { ProviderId, Settings } from "./lib/types.js";
+import { browserVoices, GROQ_VOICES, resetVoiceFallback, speak, type VoiceSettings } from "./lib/voice.js";
 
 const stroke = { fill: "none", stroke: "currentColor", strokeLinecap: "round", strokeLinejoin: "round" } as const;
 
@@ -118,6 +119,9 @@ export function SettingsDialog({
   const [loading, setLoading] = useState(false);
   const [loadNote, setLoadNote] = useState<string | null>(null);
   const first = useRef<HTMLSelectElement>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const stopPreview = useRef<() => void>(() => {});
 
   const id = draft.provider;
   const provider = PROVIDERS[id];
@@ -137,6 +141,38 @@ export function SettingsDialog({
     setLoadNote(null);
   };
 
+  // Browsers load their voice list late, and announce it with an event.
+  useEffect(() => {
+    const load = () => setVoices(browserVoices());
+    load();
+    window.speechSynthesis?.addEventListener?.("voiceschanged", load);
+    return () => {
+      window.speechSynthesis?.removeEventListener?.("voiceschanged", load);
+      stopPreview.current();
+    };
+  }, []);
+
+  const setVoice = (patch: Partial<VoiceSettings>) => {
+    resetVoiceFallback();
+    setVoiceNote(null);
+    setDraft((d) => ({ ...d, voice: { ...d.voice, ...patch } }));
+  };
+
+  const preview = () => {
+    stopPreview.current();
+    resetVoiceFallback();
+    if (draft.voice.engine === "groq" && !(draft.keys.groq ?? "").trim()) {
+      setVoiceNote("Add a Groq API key to hear the natural voice.");
+      return;
+    }
+    setVoiceNote(null);
+    stopPreview.current = speak("Thanks for joining. Walk me through a recent project you owned, and which decisions were yours.", () => {}, {
+      voice: draft.voice,
+      groqKey: draft.keys.groq,
+      onFallback: (reason) => setVoiceNote(`The natural voice did not work, so you are hearing the browser voice. ${reason}`),
+    });
+  };
+
   const loadModels = async () => {
     setLoading(true);
     setLoadNote(null);
@@ -154,6 +190,8 @@ export function SettingsDialog({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    stopPreview.current();
+    resetVoiceFallback();
     onSave(draft);
   };
 
@@ -258,6 +296,77 @@ export function SettingsDialog({
         {isAnthropic || id === "ollama" ? null : (
           <p className="hint">Free tiers may use what you send to improve their services. Check the provider's terms before pasting anything private.</p>
         )}
+
+        <fieldset className="voice">
+          <legend>Interviewer's voice</legend>
+          <div className="field">
+            <label htmlFor="voice-engine">Voice type</label>
+            <select id="voice-engine" value={draft.voice.engine} onChange={(e) => setVoice({ engine: e.target.value as VoiceSettings["engine"] })}>
+              <option value="browser">Browser voice (free, private)</option>
+              <option value="groq">Natural voice by Groq (uses your Groq key)</option>
+            </select>
+          </div>
+
+          {draft.voice.engine === "groq" ? (
+            <>
+              {id === "groq" ? null : (
+                <div className="field">
+                  <label htmlFor="groq-voice-key">Groq API key for the voice</label>
+                  <input
+                    id="groq-voice-key"
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={draft.keys.groq ?? ""}
+                    onChange={(e) => setDraft({ ...draft, keys: { ...draft.keys, groq: e.target.value.trim() } })}
+                  />
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="groq-voice">Voice</label>
+                <select id="groq-voice" value={draft.voice.groqVoice} onChange={(e) => setVoice({ groqVoice: e.target.value })}>
+                  {GROQ_VOICES.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <p className="hint">
+                  A neural voice that sounds human. The interviewer's words are sent to Groq to be spoken, and Groq may ask you to accept the
+                  voice model's terms in its console first. If it fails, the browser voice takes over.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="field">
+              <label htmlFor="browser-voice">Voice</label>
+              <select id="browser-voice" value={draft.voice.browserVoice} onChange={(e) => setVoice({ browserVoice: e.target.value })}>
+                <option value="">Automatic: {voices[0]?.name ?? "the browser default"}</option>
+                {voices.map((v) => (
+                  <option key={v.voiceURI} value={v.voiceURI}>
+                    {v.name} ({v.lang})
+                  </option>
+                ))}
+              </select>
+              <p className="hint">
+                Listed most natural first. Voices come from your browser and system: Edge has the most natural free ones, Chrome's "Google"
+                voices are next, and on a Mac you can download better ones in System Settings under Accessibility, Spoken Content.
+              </p>
+            </div>
+          )}
+
+          <div className="row">
+            <button type="button" className="btn ghost small" onClick={preview}>
+              {Icon.speaker}
+              Hear this voice
+            </button>
+            {voiceNote ? (
+              <span className="hint" role="status">
+                {voiceNote}
+              </span>
+            ) : null}
+          </div>
+        </fieldset>
 
         <label className="check">
           <input type="checkbox" checked={draft.speakQuestions} onChange={(e) => setDraft({ ...draft, speakQuestions: e.target.checked })} />

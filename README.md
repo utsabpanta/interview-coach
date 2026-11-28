@@ -107,6 +107,7 @@ Callback has no backend, accounts, or analytics. What that means in practice:
 - **The job posting, your resume, and your answers** are sent to the model provider you chose, to plan questions and score answers. Callback stores them nowhere, and they are gone when you close the tab. With Ollama or another local server, they never leave your computer.
 - **Free hosted tiers may use what you send to improve their services.** Check the provider's terms before pasting anything private, or use a local model.
 - **Your history** keeps scores only (role, date, readiness, skill scores), in local storage.
+- **The natural voice is optional.** If you turn it on, the interviewer's words (not yours) are sent to Groq to be turned into audio.
 - **Speech recognition is done by your browser**, not by Callback. Some browsers, including Chrome, send audio to their vendor's speech service to transcribe it. Use typed answers if you do not want that.
 - **The share card** contains scores only.
 
@@ -153,6 +154,19 @@ The microphone is off while the interviewer is speaking, so wait for it to finis
 **Start answering** to cut in. Only requests that are unmistakable are handled on the spot;
 anything else you say is treated as part of your answer and sent to the interviewer.
 
+### The interviewer's voice
+
+Settings has two kinds of voice, each with a **Hear this voice** preview:
+
+| Voice | Sounds like | Cost and privacy |
+| --- | --- | --- |
+| Browser voice (default) | Depends on your browser. Edge's "Natural" voices are the best free ones, Chrome's "Google" voices are next, and Safari uses your system voices. | Free. Callback picks the most natural voice installed, and you can choose another. |
+| Natural voice by Groq | A neural voice that sounds human, with five voices to choose from. | Uses your Groq key, and Groq bills speech by the character. The interviewer's words are sent to Groq to be spoken. |
+
+If the natural voice fails (no key, terms not accepted in Groq's console, a rate limit), the
+browser voice takes over and a notice says why. On a Mac you can install better system voices in
+System Settings under Accessibility, Spoken Content.
+
 Question quality depends on the model you choose. The interviewer is told today's date and asked
 to follow current practice, but a small or older model will still drift toward generic questions.
 
@@ -197,7 +211,7 @@ src/                 coaching logic shared by the web app and the CLI
 web/
   src/App.tsx        session state and screen flow
   src/screens/       start, live interview, feedback, scorecard
-  src/lib/           providers, speech, scoring, storage, share card
+  src/lib/           providers, speech recognition, voice, scoring, storage, share card
 docs/cli.md          command-line documentation
 ```
 

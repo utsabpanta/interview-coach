@@ -1,5 +1,6 @@
 import { PATIENCE_MS } from "../../../src/intents.js";
 import { PROVIDERS } from "./providers.js";
+import { DEFAULT_VOICE } from "./voice.js";
 import type { SessionSummary, Settings } from "./types.js";
 
 /**
@@ -20,6 +21,7 @@ export const DEFAULT_SETTINGS: Settings = {
   followUps: true,
   handsFree: true,
   patience: "normal",
+  voice: DEFAULT_VOICE,
 };
 
 function read<T>(key: string): T | null {
@@ -54,7 +56,9 @@ export function loadSettings(): Settings {
     keys: { ...(rest.keys ?? {}) },
     models: { ...(rest.models ?? {}) },
     baseUrls: { ...(rest.baseUrls ?? {}) },
+    voice: { ...DEFAULT_VOICE, ...(rest.voice ?? {}) },
   };
+  if (settings.voice.engine !== "groq") settings.voice.engine = "browser";
   if (apiKey && !rest.provider) {
     settings.provider = "anthropic";
     settings.keys.anthropic = apiKey;

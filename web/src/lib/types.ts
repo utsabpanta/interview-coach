@@ -2,6 +2,7 @@ import type { Exchange, Feedback, InterviewType, PlannedQuestion } from "../../.
 import type { Patience } from "../../../src/intents.js";
 import type { DeliveryMetrics } from "../../../src/metrics.js";
 import type { Pacing } from "../../../src/pacing.js";
+import type { VoiceSettings } from "./voice.js";
 
 export interface Setup {
   jobDescription: string;
@@ -64,4 +65,6 @@ export interface Settings {
   handsFree: boolean;
   /** How long the interviewer waits through silence before replying. */
   patience: Patience;
+  /** How the interviewer's words are spoken. */
+  voice: VoiceSettings;
 }
