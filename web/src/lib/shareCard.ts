@@ -1,4 +1,4 @@
-/** Draws the shareable progress card. It carries scores only: no answers, no job posting. */
+/** Draws the shareable progress card. It carries the score, role, and interview type: no answers, no job posting. */
 
 export interface ShareCard {
   headline: string;
@@ -6,7 +6,7 @@ export interface ShareCard {
 }
 
 export function shareHeadline(readiness: number, previous: number | null): string {
-  return previous !== null && readiness > previous ? `${previous} to ${readiness} in one session` : `Interview readiness: ${readiness} / 100`;
+  return previous !== null && readiness > previous ? `Up from ${previous} to ${readiness} since my last session` : `Practice score: ${readiness} / 100`;
 }
 
 export function drawShareCard(card: ShareCard): HTMLCanvasElement {

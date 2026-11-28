@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Header, Icon, Logo } from "../components.js";
-import { answered, bySkill, clock, delivery, READY_AT, readiness, titleCase, weakestSkill } from "../lib/score.js";
+import { answered, bySkill, clock, delivery, enoughToJudge, readiness, retryGain, titleCase, weakestSkill } from "../lib/score.js";
 import { downloadCanvas, drawShareCard, shareHeadline } from "../lib/shareCard.js";
 import type { Session } from "../lib/types.js";
 
@@ -11,21 +11,25 @@ export function Scorecard({
   onNew,
 }: {
   session: Session;
-  /** Readiness of the last session for the same role, if there was one. */
+  /** Score of the last comparable session (same role, type, and kind), if there was one. */
   previous: number | null;
   onDrill: (competency: string) => void;
   onNew: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const rounds = answered(session);
+  const planned = session.plan.length;
+  // A number from one or two answers would look far more certain than it is.
+  const judged = enoughToJudge(rounds.length, planned);
   const score = readiness(rounds);
+  const gain = retryGain(rounds);
   const skills = bySkill(rounds);
   const weakest = weakestSkill(rounds);
   const sound = delivery(rounds);
-  const delta = previous === null ? null : score - previous;
+  const delta = judged && previous !== null ? score - previous : null;
 
-  const roundLabel = `${titleCase(session.type)} round, ${session.role}`;
-  const headline = shareHeadline(score, previous);
+  const roundLabel = `${titleCase(session.type)} ${session.drill ? `drill (${session.drill.replace(/-/g, " ")})` : "round"}, ${session.role}`;
+  const headline = shareHeadline(score, judged ? previous : null);
   const summary = `${headline}. ${roundLabel}. Practiced with Callback, open-source spoken interview practice: https://github.com/utsabpanta/interview-coach`;
 
   const copy = async () => {
@@ -38,13 +42,6 @@ export function Scorecard({
     }
   };
 
-  const verdict =
-    score >= READY_AT
-      ? `You are past the white line at ${READY_AT}, where answers hold up under follow-up questions. Keep them sharp with short drills.`
-      : `The white line marks ${READY_AT}, where answers hold up under follow-up questions.${
-          weakest && skills.length > 1 ? ` ${titleCase(weakest)} is what stands between you and it.` : ""
-        }`;
-
   return (
     <div className="page">
       <Header subtitle={roundLabel} onHome={onNew}>
@@ -54,54 +51,68 @@ export function Scorecard({
       </Header>
 
       <main className="stack">
-        <section className="split-row" aria-label="Readiness">
+        <section className="split-row" aria-label="Practice score">
           <div className="card readiness">
-            <p className="eyebrow muted">Readiness for this role</p>
-            <div className="readiness-head">
-              <h1>
-                {score}
-                <span> / 100</span>
-              </h1>
-              {delta !== null && delta !== 0 ? (
-                <p className={`chip ${delta < 0 ? "warn" : ""}`}>
-                  {delta > 0 ? Icon.up : Icon.down}
-                  {delta > 0 ? "Up" : "Down"} {Math.abs(delta)} since your last session
-                </p>
-              ) : null}
-            </div>
-            <div className="readiness-bar" role="img" aria-label={`Readiness ${score} out of 100; ${READY_AT} is interview-ready`}>
-              <div className="fill accent" style={{ width: `${score}%` }} />
-              <div className="ready-line" style={{ left: `${READY_AT}%` }} />
-            </div>
+            <p className="eyebrow muted">Practice score for this round</p>
+            {judged ? (
+              <>
+                <div className="readiness-head">
+                  <h1>
+                    {score}
+                    <span> / 100</span>
+                  </h1>
+                  {delta !== null && delta !== 0 ? (
+                    <p className={`chip ${delta < 0 ? "warn" : ""}`}>
+                      {delta > 0 ? Icon.up : Icon.down}
+                      {delta > 0 ? "Up" : "Down"} {Math.abs(delta)} since your last {session.drill ? "drill on this skill" : "round for this role"}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="readiness-bar" role="img" aria-label={`Practice score ${score} out of 100`}>
+                  <div className="fill accent" style={{ width: `${score}%` }} />
+                </div>
+              </>
+            ) : (
+              <h1 className="not-enough">Not enough to score yet</h1>
+            )}
             <p>
-              You answered {rounds.length} {rounds.length === 1 ? "question" : "questions"}. {verdict}
+              You answered {rounds.length} of {planned} {planned === 1 ? "topic" : "topics"}.{" "}
+              {judged
+                ? "The score is the average of your first answers, as a share of the maximum: scoring 4 out of 5 on everything gives 80."
+                : "Answer at least three topics, and at least half the round, to get a score."}
+              {judged && gain !== null && gain !== 0 ? ` Your retries scored ${Math.abs(gain)} points ${gain > 0 ? "higher" : "lower"}; they are not counted, because they came after the feedback.` : ""}
+            </p>
+            <p className="muted small-text">
+              Scores are one AI model's opinion of a few answers. Use them to see what to practice, not to predict a hiring decision.
             </p>
           </div>
 
-          <div className="card share">
-            <h2>Share your progress</h2>
-            <div className="share-preview">
-              <p className="share-brand">
-                <Logo size={18} />
-                Callback
-              </p>
-              <p className="share-headline">{headline}</p>
-              <p className="muted small-text">{roundLabel}</p>
+          {judged ? (
+            <div className="card share">
+              <h2>Share your progress</h2>
+              <div className="share-preview">
+                <p className="share-brand">
+                  <Logo size={18} />
+                  Callback
+                </p>
+                <p className="share-headline">{headline}</p>
+                <p className="muted small-text">{roundLabel}</p>
+              </div>
+              <p className="muted small-text">Shares your score, the role, and the interview type. Your answers and the job posting are never included.</p>
+              <div className="row grow">
+                <button type="button" className="btn primary" onClick={() => void copy()}>
+                  {copied ? "Copied" : "Copy summary"}
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => downloadCanvas(drawShareCard({ headline, subline: roundLabel }), "callback-scorecard.png")}
+                >
+                  Save image
+                </button>
+              </div>
             </div>
-            <p className="muted small-text">The card shows scores only. Your answers and the job posting are never included.</p>
-            <div className="row grow">
-              <button type="button" className="btn primary" onClick={() => void copy()}>
-                {copied ? "Copied" : "Copy summary"}
-              </button>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => downloadCanvas(drawShareCard({ headline, subline: roundLabel }), "callback-scorecard.png")}
-              >
-                Save image
-              </button>
-            </div>
-          </div>
+          ) : null}
         </section>
 
         <section className="split-row" aria-label="Breakdown">
@@ -118,7 +129,7 @@ export function Scorecard({
                     </div>
                     <span className="skill-value">
                       {s.score.toFixed(1)}
-                      {weak ? <span className="warn"> · weakest</span> : null}
+                      {weak ? <span className="warn"> · lowest</span> : null}
                     </span>
                   </div>
                 );
@@ -134,7 +145,7 @@ export function Scorecard({
                 <dd>{sound.wordsPerMinute ? `${sound.wordsPerMinute} words a minute` : "Not measured"}</dd>
               </div>
               <div>
-                <dt>Average answer</dt>
+                <dt>Speaking time per topic</dt>
                 <dd>{clock(sound.averageSeconds)}</dd>
               </div>
               <div>

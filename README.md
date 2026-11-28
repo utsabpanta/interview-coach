@@ -21,13 +21,13 @@ signup, and has no server.
 - **Interviews the way they are run now.** Questions are practical and close to the job: project deep dives, production incidents, reviewing AI-generated code, designing AI-powered features, and how you work with AI tools. No brainteasers, trivia, or "greatest weakness".
 - **Your turn to ask.** Each round ends with your questions for the interviewer, and those are scored too.
 - **One fix, then retry.** Each conversation is scored on structure, specificity, relevance, and concision, with a single most important change and a before-and-after comparison when you try again.
-- **A readiness score for the role.** The scorecard shows where you stand by skill, how you sounded (pace, filler words, "I" versus "we"), and a ten-minute drill on your weakest skill.
+- **A practice score that doesn't oversell.** The scorecard shows where you stand by skill, how you sounded (pace, filler words, "I" versus "we"), and a ten-minute drill on your lowest-scoring skill. It won't put a number on a round you mostly skipped.
 - **Free and open models.** Use a free hosted tier (Groq, Google Gemini, OpenRouter), a model running on your own computer (Ollama, LM Studio), or Claude.
 - **No signup and no server.** The app is a static site. It runs in your browser and talks straight to the model provider you choose; your history never leaves that browser.
 
 | Start from a job posting | Fix one thing, then retry | See where you stand |
 | --- | --- | --- |
-| ![Start screen](docs/screenshots/start.png) | ![Feedback with a before-and-after comparison](docs/screenshots/feedback.png) | ![Scorecard with a readiness score](docs/screenshots/scorecard.png) |
+| ![Start screen](docs/screenshots/start.png) | ![Feedback with a before-and-after comparison](docs/screenshots/feedback.png) | ![Scorecard with a practice score](docs/screenshots/scorecard.png) |
 
 Screenshots show the built-in sample data, not output from a real model.
 
@@ -101,18 +101,26 @@ to `main`; turn it on once under **Settings → Pages → Source: GitHub Actions
 
 ## Privacy
 
-Callback has no backend, accounts, or analytics. What that means in practice:
+Callback has no backend, accounts, or analytics, and loads nothing from other sites: fonts and
+scripts are served with the app. What that means in practice:
 
-- **Your API keys** are stored in your browser's local storage and each is sent only to its own provider.
-- **The job posting, your resume, and your answers** are sent to the model provider you chose, to plan questions and score answers. Callback stores them nowhere, and they are gone when you close the tab. With Ollama or another local server, they never leave your computer.
+- **The job posting, your resume, and your answers** are sent to the model provider you chose, to plan questions and score answers. Callback stores them nowhere, and they are gone when you close the tab. With Ollama or another local server, they are not sent to any provider.
 - **Free hosted tiers may use what you send to improve their services.** Check the provider's terms before pasting anything private, or use a local model.
-- **Your history** keeps scores only (role, date, readiness, skill scores), in local storage.
+- **Speech recognition is done by your browser**, not by Callback. Some browsers, including Chrome, send audio to their vendor's speech service to transcribe it, even when you use a local model. Use typed answers if you do not want that.
 - **The natural voice is optional.** If you turn it on, the interviewer's words (not yours) are sent to Groq to be turned into audio.
-- **Speech recognition is done by your browser**, not by Callback. Some browsers, including Chrome, send audio to their vendor's speech service to transcribe it. Use typed answers if you do not want that.
-- **The share card** contains scores only.
+- **Your history** keeps scores only (role, date, score, skill scores), in this browser. **Delete practice history** in Settings removes it.
+- **Sharing** includes your score, the role, and the interview type. Your answers and the job posting are never included.
 
-Because keys live in the browser, prefer free-tier keys or keys with a spending limit, and only run
-builds of Callback that you trust.
+### Your API keys
+
+Keys are stored in your browser and each is sent only to its own provider. Three things to know:
+
+- **Browser storage is shared by every page at the same web address.** If you host Callback under a path of a larger site (as the demo is), other pages on that site could read the keys. Hosting it on its own subdomain avoids this.
+- **You control how long keys are kept.** Turn off **Remember my API keys on this device** in Settings to keep them only until the tab is closed, and use **Remove saved API keys** to delete them.
+- **Limit the damage a leaked key could do.** Prefer free-tier keys or keys with a spending limit, and only run builds of Callback that you trust.
+
+The built site sends a Content-Security-Policy that allows only its own scripts to run, blocks
+embedding and form submission, and limits network requests to HTTPS and to this computer.
 
 ## How a round runs
 
@@ -172,13 +180,30 @@ to follow current practice, but a small or older model will still drift toward g
 
 ## How scoring works
 
-Every conversation gets four scores from 1 to 5. The readiness score is the average across your answers
-(each question counted at its latest attempt) as a percentage of the maximum; 80 is marked as
-interview-ready. Delivery metrics are computed locally, without a model: word count, speaking
-time, filler words, and pronoun use.
+Every conversation gets four scores from 1 to 5: structure, specificity, relevance, and concision.
+The practice score is the average across the topics you answered, as a percentage of the maximum,
+so scoring 4 out of 5 on everything gives 80.
 
-The coach is instructed never to invent facts about you. Rewritten answers use only what you said
-and mark missing details with placeholders such as `[metric]`.
+The score is one AI model's opinion of a few answers. It is there to show what to practice, not to
+predict a hiring decision, and the app is built not to overstate it:
+
+- **First answers count.** A retry comes after you have read the feedback and a model-written
+  better answer, so retries are reported separately and do not raise the score.
+- **Too little is not scored.** You need at least three answered topics, and at least half the
+  round, before a number is shown.
+- **Progress compares like with like.** "Up 9 since your last round" compares only with an earlier
+  session for the same role, interview type, and kind (a full round, or a drill on the same skill).
+- **No invented scores.** If the model's evaluation is missing a score or is out of range, the app
+  reports an error and offers to score again instead of filling in a number.
+- **Quotes are checked.** A phrase is shown as "from what you said" only if it appears in your
+  answers.
+
+Delivery metrics are computed locally, without a model: word count, speaking time, filler words,
+and pronoun use. Pace is measured from the time you spent speaking, not waiting.
+
+The coach is instructed not to invent facts about you, and rewritten answers mark missing details
+with placeholders such as `[metric]`. That is an instruction to the model, not a guarantee, so
+check a rewrite against what really happened before you use it.
 
 ## Command-line tool
 

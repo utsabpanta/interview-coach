@@ -1,6 +1,6 @@
 import { averageScore, DIMENSIONS, type Feedback as FeedbackData } from "../../../src/coach.js";
 import { Header, Icon, ScoreBars } from "../components.js";
-import { clock, titleCase } from "../lib/score.js";
+import { clock, saidByCandidate, titleCase } from "../lib/score.js";
 import type { Attempt, Round, Session } from "../lib/types.js";
 
 function bars(f: FeedbackData): Array<[string, number]> {
@@ -70,7 +70,7 @@ export function Feedback({
             <h1>{fix.headline}</h1>
             {fix.detail ? <p>{fix.detail}</p> : null}
           </div>
-          {fix.quote ? (
+          {saidByCandidate(fix.quote, latest.exchanges) ? (
             <figure className="quote">
               <figcaption className="muted small-text">From what you said</figcaption>
               <blockquote>
@@ -144,7 +144,10 @@ export function Feedback({
         <details className="card rewrite">
           <summary>{closing ? "See sharper questions you could ask" : "See a stronger version of your answer"}</summary>
           <p>{latest.feedback.rewrite}</p>
-          <p className="muted small-text">Built only from what you said. Bracketed gaps are details for you to fill in.</p>
+          <p className="muted small-text">
+            Written by the model from your answer. Check it against what really happened before you use it; bracketed gaps are details for you to
+            fill in.
+          </p>
         </details>
 
         <div className="actions">

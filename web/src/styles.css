@@ -920,9 +920,32 @@ button:disabled {
   letter-spacing: 0;
   color: var(--muted);
 }
-.readiness > p:last-child {
+.readiness > p {
   color: var(--text-2);
   line-height: 1.55;
+}
+.readiness > p.eyebrow,
+.readiness > p.muted {
+  color: var(--muted);
+}
+.readiness h1.not-enough {
+  font-size: clamp(32px, 4.4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.danger-zone {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.privacy-note {
+  max-width: 640px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
 }
 .chip {
   display: inline-flex;

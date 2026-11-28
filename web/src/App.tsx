@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { planInterview, ROUND_SHAPE } from "../../src/coach.js";
 import type { LLM } from "../../src/types.js";
 import { SettingsDialog } from "./components.js";
@@ -6,7 +6,7 @@ import { explainError } from "./lib/llm.js";
 import { makeLLM, missing } from "./lib/providers.js";
 import { MockLLM } from "./lib/mockLlm.js";
 import { answered, previousReadiness, summarize } from "./lib/score.js";
-import { loadHistory, loadSettings, saveSettings, saveToHistory } from "./lib/store.js";
+import { clearHistory, loadHistory, loadSettings, saveSettings, saveToHistory } from "./lib/store.js";
 import type { Attempt, Round, Session, SessionSummary, Settings, Setup } from "./lib/types.js";
 import { Feedback } from "./screens/Feedback.js";
 import { Interview } from "./screens/Interview.js";
@@ -31,6 +31,20 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ reason?: string; pending?: Setup } | null>(null);
   const [previous, setPrevious] = useState<number | null>(null);
+  /** Once someone chooses to type, keep typing for the rest of the interview. */
+  const [preferTyping, setPreferTyping] = useState(false);
+
+  // Leaving mid-interview loses the conversation, so the browser asks first.
+  const inInterview = Boolean(session) && (stage === "interview" || stage === "feedback");
+  useEffect(() => {
+    if (!inInterview) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [inInterview]);
 
   const llm = useMemo<LLM | null>(() => (MOCK ? new MockLLM() : makeLLM(settings)), [settings]);
 
@@ -162,6 +176,8 @@ export function App() {
             saveSettings(next);
           }}
           onOpenSettings={() => setDialog({})}
+          preferTyping={preferTyping}
+          onPreferTyping={() => setPreferTyping(true)}
         />
       ) : stage === "feedback" && round ? (
         <Feedback session={session} round={round} onRetry={retry} onNext={() => goTo(session, session.index + 1)} onFinish={() => finish(session)} />
@@ -184,7 +200,19 @@ export function App() {
         </div>
       ) : null}
 
-      {dialog ? <SettingsDialog settings={settings} reason={dialog.reason} onSave={saveDialog} onClose={() => setDialog(null)} /> : null}
+      {dialog ? (
+        <SettingsDialog
+          settings={settings}
+          reason={dialog.reason}
+          historyCount={history.length}
+          onSave={saveDialog}
+          onClose={() => setDialog(null)}
+          onClearHistory={() => {
+            clearHistory();
+            setHistory([]);
+          }}
+        />
+      ) : null}
     </>
   );
 }

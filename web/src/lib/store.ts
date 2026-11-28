@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: Settings = {
   handsFree: true,
   patience: "normal",
   voice: DEFAULT_VOICE,
+  rememberKeys: true,
 };
 
 function read<T>(key: string): T | null {
@@ -47,13 +48,25 @@ interface LegacySettings {
   model?: string;
 }
 
+const KEYS_KEY = "callback.keys.v1";
+
+function readSessionKeys(): Settings["keys"] {
+  try {
+    const raw = sessionStorage.getItem(KEYS_KEY);
+    return raw ? (JSON.parse(raw) as Settings["keys"]) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function loadSettings(): Settings {
   const saved = read<Partial<Settings> & LegacySettings>(SETTINGS_KEY) ?? {};
   const { apiKey, model, ...rest } = saved;
   const settings: Settings = {
     ...DEFAULT_SETTINGS,
     ...rest,
-    keys: { ...(rest.keys ?? {}) },
+    // Keys kept only for this tab live in sessionStorage.
+    keys: { ...(rest.keys ?? {}), ...readSessionKeys() },
     models: { ...(rest.models ?? {}) },
     baseUrls: { ...(rest.baseUrls ?? {}) },
     voice: { ...DEFAULT_VOICE, ...(rest.voice ?? {}) },
@@ -69,8 +82,26 @@ export function loadSettings(): Settings {
   return settings;
 }
 
+/**
+ * Saves settings. With "remember keys" off, keys are written only to
+ * sessionStorage, which the browser clears when the tab is closed.
+ */
 export function saveSettings(settings: Settings): void {
-  write(SETTINGS_KEY, settings);
+  if (settings.rememberKeys) {
+    write(SETTINGS_KEY, settings);
+    try {
+      sessionStorage.removeItem(KEYS_KEY);
+    } catch {
+      // Nothing to remove.
+    }
+    return;
+  }
+  write(SETTINGS_KEY, { ...settings, keys: {} });
+  try {
+    sessionStorage.setItem(KEYS_KEY, JSON.stringify(settings.keys));
+  } catch {
+    // Keys stay in memory for this page only.
+  }
 }
 
 export function loadHistory(): SessionSummary[] {

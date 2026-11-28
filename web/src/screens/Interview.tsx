@@ -51,6 +51,8 @@ export function Interview({
   onEnd,
   onSettingsChange,
   onOpenSettings,
+  preferTyping,
+  onPreferTyping,
 }: {
   session: Session;
   settings: Settings;
@@ -62,6 +64,9 @@ export function Interview({
   onEnd: () => void;
   onSettingsChange: (next: Settings) => void;
   onOpenSettings: () => void;
+  /** The candidate chose to type earlier in this interview. */
+  preferTyping: boolean;
+  onPreferTyping: () => void;
 }) {
   const topic = session.plan[session.index];
   const closing = topic.kind === "candidate-questions";
@@ -76,11 +81,14 @@ export function Interview({
   const [finalText, setFinalText] = useState("");
   const [interim, setInterim] = useState("");
   const [typed, setTyped] = useState("");
-  const [typing, setTyping] = useState(!recognitionSupported());
+  const voiceSupported = recognitionSupported();
+  const [typing, setTyping] = useState(!voiceSupported || preferTyping);
   const [seconds, setSeconds] = useState(0);
   const [spokenSeconds, setSpokenSeconds] = useState(0);
   const [turnStart, setTurnStart] = useState(0);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(
+    voiceSupported ? null : "This browser cannot transcribe speech, so answers are typed. Chrome, Edge, and Safari support voice.",
+  );
   /** Seconds until the interviewer replies on its own, while the candidate is silent. */
   const [countdown, setCountdown] = useState<number | null>(null);
   /** The candidate asked for more time on this turn, so do not reply automatically. */
@@ -286,6 +294,17 @@ export function Interview({
     setTyped(spoken);
     setTyping(true);
     usedTyping.current = true;
+    onPreferTyping();
+  };
+
+  /** Skipping or ending throws away what was said on this topic, so ask first. */
+  const confirmDiscard = (action: string) =>
+    exchanges.current.length === 0 && !current ? true : window.confirm(`${action} What you have said on this question will not be scored.`);
+  const skip = () => {
+    if (confirmDiscard("Skip this question?")) onSkip();
+  };
+  const end = () => {
+    if (confirmDiscard("End the interview now?")) onEnd();
   };
 
   const evaluateNow = async () => {
@@ -493,11 +512,11 @@ export function Interview({
 
   return (
     <div className="page">
-      <Header subtitle={`${session.role}, ${session.drill ? `${session.drill} drill` : `${titleCase(session.type).toLowerCase()} round`}`} onHome={onEnd}>
+      <Header subtitle={`${session.role}, ${session.drill ? `${session.drill} drill` : `${titleCase(session.type).toLowerCase()} round`}`} onHome={end}>
         <button type="button" className="icon-btn" aria-label="Settings" onClick={onOpenSettings}>
           {Icon.gear}
         </button>
-        <button type="button" className="btn ghost small" onClick={onEnd}>
+        <button type="button" className="btn ghost small" onClick={end}>
           End interview
         </button>
       </Header>
@@ -567,7 +586,7 @@ export function Interview({
                   Hear it again
                 </button>
               )}
-              <button type="button" className="btn ghost small" onClick={onSkip} disabled={busy}>
+              <button type="button" className="btn ghost small" onClick={skip} disabled={busy}>
                 {closing ? "Skip this part" : "Skip question"}
               </button>
             </div>

@@ -48,6 +48,10 @@ export interface SessionSummary {
   type: InterviewType;
   readiness: number;
   answers: number;
+  /** Topics in the round, including any that were skipped. Absent in older records. */
+  planned?: number;
+  /** Set when the session was a drill on one skill. */
+  drill?: string;
   skills: Array<{ competency: string; score: number }>;
 }
 
@@ -67,4 +71,6 @@ export interface Settings {
   patience: Patience;
   /** How the interviewer's words are spoken. */
   voice: VoiceSettings;
+  /** Keep API keys after the browser is closed. When off, they last only for this tab. */
+  rememberKeys: boolean;
 }

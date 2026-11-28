@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { INTERVIEW_TYPES, ROUND_SHAPE, type InterviewType } from "../../../src/coach.js";
 import { Header, Icon } from "../components.js";
-import { titleCase } from "../lib/score.js";
+import { enoughToJudge, titleCase } from "../lib/score.js";
 import type { SessionSummary, Setup } from "../lib/types.js";
 
 const TYPE_LABEL: Record<InterviewType, string> = {
@@ -128,6 +128,11 @@ export function Start({
           <li>{Icon.check}No server: your history stays in this browser</li>
         </ul>
 
+        <p className="privacy-note">
+          Your answers go to the model provider you choose. Speech is transcribed by your browser, which in Chrome means Google's speech service;
+          you can type instead.
+        </p>
+
         {recent.length ? (
           <section className="card history" aria-label="Your sessions">
             <h2>Your sessions</h2>
@@ -135,10 +140,10 @@ export function Start({
               {recent.map((h) => (
                 <li key={h.id}>
                   <span>
-                    {h.role} <span className="muted">· {titleCase(h.type)}</span>
+                    {h.role} <span className="muted">· {titleCase(h.type)}{h.drill ? ` drill, ${h.drill.replace(/-/g, " ")}` : ""}</span>
                   </span>
                   <span className="muted">{new Date(h.date).toLocaleDateString()}</span>
-                  <strong>{h.readiness} / 100</strong>
+                  {enoughToJudge(h.answers, h.planned ?? h.answers) ? <strong>{h.readiness} / 100</strong> : <span className="muted">Too short to score</span>}
                 </li>
               ))}
             </ul>

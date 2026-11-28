@@ -50,7 +50,7 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     baseUrl: "http://localhost:11434/v1",
     defaultModel: "llama3.2",
     needsKey: false,
-    note: "Runs open models on your own computer. Nothing leaves your machine.",
+    note: "Runs open models on your own computer, so the job posting and your answers are not sent to a model provider. Speech is still transcribed by your browser.",
   },
   anthropic: {
     label: "Anthropic Claude",

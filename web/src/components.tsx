@@ -106,15 +106,21 @@ export function ScoreBars({ scores, tone }: { scores: Array<[label: string, valu
 export function SettingsDialog({
   settings,
   reason,
+  historyCount,
   onSave,
   onClose,
+  onClearHistory,
 }: {
   settings: Settings;
   reason?: string;
+  /** Number of saved practice sessions, to enable the delete control. */
+  historyCount: number;
   onSave: (next: Settings) => void;
   onClose: () => void;
+  onClearHistory: () => void;
 }) {
   const [draft, setDraft] = useState(settings);
+  const [cleared, setCleared] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadNote, setLoadNote] = useState<string | null>(null);
@@ -125,15 +131,46 @@ export function SettingsDialog({
 
   const id = draft.provider;
   const provider = PROVIDERS[id];
+  const hasKeys = Object.values(draft.keys).some((k) => (k ?? "").trim());
   const isAnthropic = id === "anthropic";
   const editableUrl = id === "custom" || id === "ollama";
 
+  const form = useRef<HTMLFormElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+
+  // A modal dialog: focus moves in, stays in while it is open, and goes back
+  // to where it was when it closes.
   useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
     first.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        close.current();
+        return;
+      }
+      if (e.key !== "Tab" || !form.current) return;
+      const items = [...form.current.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea")].filter(
+        (el) => !el.hasAttribute("disabled") && el.offsetParent !== null,
+      );
+      if (items.length === 0) return;
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === firstItem || !form.current.contains(active))) {
+        e.preventDefault();
+        lastItem.focus();
+      } else if (!e.shiftKey && (active === lastItem || !form.current.contains(active))) {
+        e.preventDefault();
+        firstItem.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      before?.focus?.();
+    };
+  }, []);
 
   const setProvider = (next: ProviderId) => {
     setDraft({ ...draft, provider: next });
@@ -197,7 +234,7 @@ export function SettingsDialog({
 
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" onSubmit={submit}>
+      <form ref={form} className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" onSubmit={submit}>
         <h2 id="settings-title">Settings</h2>
         {reason && missing(draft) ? <p className="notice">{missing(draft)}</p> : null}
 
@@ -390,6 +427,47 @@ export function SettingsDialog({
             <option value="long">Long, about 8 seconds</option>
           </select>
           <p className="hint">It waits longer when you have only just started or stopped mid-sentence.</p>
+        </div>
+
+        <label className="check">
+          <input type="checkbox" checked={draft.rememberKeys} onChange={(e) => setDraft({ ...draft, rememberKeys: e.target.checked })} />
+          Remember my API keys on this device
+        </label>
+        <p className="hint">
+          Keys are stored in this browser, where other pages on this website's address could read them. Turn this off to keep them only until
+          you close the tab, and prefer free-tier keys or keys with a spending limit.
+        </p>
+
+        <div className="danger-zone">
+          <div className="row">
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={!hasKeys}
+              onClick={() => {
+                setDraft({ ...draft, keys: {} });
+                setCleared("Keys removed. Press Save to confirm.");
+              }}
+            >
+              Remove saved API keys
+            </button>
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={historyCount === 0}
+              onClick={() => {
+                onClearHistory();
+                setCleared("Practice history deleted.");
+              }}
+            >
+              Delete practice history
+            </button>
+          </div>
+          {cleared ? (
+            <p className="hint" role="status">
+              {cleared}
+            </p>
+          ) : null}
         </div>
 
         <div className="dialog-actions">
