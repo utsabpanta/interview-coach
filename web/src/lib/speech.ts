@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** Thin wrappers over the browser's speech features, each with a silent fallback. */
 
@@ -38,19 +38,22 @@ export interface Recognizer {
 }
 
 /**
- * Continuous dictation. `onText` receives everything finalized so far plus the
- * words still being recognized. Browsers end recognition after a silence, so it
- * is restarted until `stop` is called.
+ * Continuous dictation. `onText` receives everything finalized so far, the
+ * words still being recognized, and the most recently finalized phrase.
+ * Browsers end recognition after a silence, so it is restarted until `stop`
+ * is called. `initial` seeds the transcript, to carry on an earlier answer.
  */
 export function createRecognizer(
-  onText: (finalText: string, interim: string) => void,
+  onText: (finalText: string, interim: string, lastSegment: string) => void,
   onBlocked: (reason: string) => void,
+  initial = "",
 ): Recognizer {
   const Ctor = recognitionCtor();
   if (!Ctor) return { start() {}, stop() {} };
 
   let wanted = false;
-  let finalText = "";
+  let finalText = initial.trim();
+  let lastSegment = "";
   let rec: Recognition | null = null;
 
   const begin = () => {
@@ -63,10 +66,12 @@ export function createRecognizer(
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const text = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText = `${finalText} ${text}`.trim();
-        else interim += text;
+        if (e.results[i].isFinal) {
+          finalText = `${finalText} ${text}`.trim();
+          if (text.trim()) lastSegment = text.trim();
+        } else interim += text;
       }
-      onText(finalText, interim.trim());
+      onText(finalText, interim.trim(), lastSegment);
     };
     rec.onerror = (e) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
@@ -145,9 +150,16 @@ export function speak(text: string, onEnd: () => void): () => void {
 
 const IDLE = 0.08;
 
-/** Live microphone level as `bars` values from 0 to 1, for the voice meter. */
-export function useMicLevels(active: boolean, bars = 28): number[] {
+/**
+ * Live microphone level as `bars` values from 0 to 1, for the voice meter.
+ * `onVoice` fires whenever the microphone hears something clearly above the
+ * room's background noise, which is a faster and more reliable sign that the
+ * candidate is still talking than waiting for recognized words.
+ */
+export function useMicLevels(active: boolean, bars = 28, onVoice?: () => void): number[] {
   const [levels, setLevels] = useState<number[]>(() => Array(bars).fill(IDLE));
+  const voice = useRef(onVoice);
+  voice.current = onVoice;
 
   useEffect(() => {
     if (!active || !navigator.mediaDevices?.getUserMedia) {
@@ -172,10 +184,14 @@ export function useMicLevels(active: boolean, bars = 28): number[] {
         analyser.fftSize = 256;
         audio.createMediaStreamSource(s).connect(analyser);
         const data = new Uint8Array(analyser.frequencyBinCount);
+        // A slowly adapting estimate of the room's background level.
+        let floor = 0.02;
         timer = window.setInterval(() => {
           analyser.getByteTimeDomainData(data);
           let peak = 0;
           for (const v of data) peak = Math.max(peak, Math.abs(v - 128) / 128);
+          if (peak > floor * 3 + 0.03) voice.current?.();
+          else floor = floor * 0.95 + peak * 0.05;
           const level = Math.min(1, Math.max(IDLE, peak * 2.2));
           // Scroll: newest level enters on the right.
           setLevels((prev) => [...prev.slice(1), level]);

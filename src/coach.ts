@@ -426,14 +426,43 @@ function list(x: unknown, max: number): string[] {
   return items.map(text).filter(Boolean).slice(0, max);
 }
 
-function score(x: unknown): number {
-  const n = Math.round(Number(x));
-  return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 3;
+/** Thrown when the model's evaluation cannot be trusted, so no score is shown. */
+export class EvaluationError extends Error {
+  constructor() {
+    super("The model did not return usable scores for this answer. Try scoring again, or pick a larger model in Settings.");
+    this.name = "EvaluationError";
+  }
 }
 
+/** A score is only accepted if the model actually gave a number from 1 to 5. */
+function score(x: unknown): number {
+  const n = typeof x === "number" ? x : typeof x === "string" && /^\s*\d+(\.\d+)?\s*$/.test(x) ? Number(x) : NaN;
+  if (!Number.isFinite(n) || n < 1 || n > 5) throw new EvaluationError();
+  return Math.round(n);
+}
+
+const asObject = (x: unknown): Record<string, unknown> | null => (x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
+
+/** Some models wrap the result in the tool-call envelope; look one level in. */
+function unwrap(raw: unknown): Record<string, unknown> {
+  const r = asObject(raw) ?? {};
+  if (asObject(r.scores)) return r;
+  for (const key of ["arguments", "input", "parameters", "answer_feedback", "feedback"]) {
+    const inner = asObject(r[key]);
+    if (inner && asObject(inner.scores)) return inner;
+  }
+  return r;
+}
+
+/**
+ * Coerces the model's evaluation into shape. Wording is tidied up freely, but
+ * scores are never invented: if any is missing or out of range this throws,
+ * and the caller offers to score again.
+ */
 export function normalizeFeedback(raw: unknown): Feedback {
-  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const s = (r.scores && typeof r.scores === "object" ? r.scores : {}) as Record<string, unknown>;
+  const r = unwrap(raw);
+  const s = asObject(r.scores);
+  if (!s) throw new EvaluationError();
   const f = (r.fix && typeof r.fix === "object" ? r.fix : {}) as Record<string, unknown>;
   const improvements = list(r.improvements, 3);
   const headline = text(f.headline) || improvements[0] || "";

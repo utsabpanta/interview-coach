@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import type { Patience } from "../../src/intents.js";
 import { listModels } from "../../src/openai.js";
 import { explainError } from "./lib/llm.js";
 import { activeBaseUrl, activeKey, missing, PROVIDER_IDS, PROVIDERS } from "./lib/providers.js";
@@ -271,6 +272,16 @@ export function SettingsDialog({
           <input type="checkbox" checked={draft.handsFree} onChange={(e) => setDraft({ ...draft, handsFree: e.target.checked })} />
           Hands-free: the interviewer replies when I stop talking
         </label>
+
+        <div className="field">
+          <label htmlFor="patience">How long the interviewer waits after you stop talking</label>
+          <select id="patience" value={draft.patience} disabled={!draft.handsFree} onChange={(e) => setDraft({ ...draft, patience: e.target.value as Patience })}>
+            <option value="short">Short, about 3.5 seconds</option>
+            <option value="normal">Normal, about 5.5 seconds</option>
+            <option value="long">Long, about 8 seconds</option>
+          </select>
+          <p className="hint">It waits longer when you have only just started or stopped mid-sentence.</p>
+        </div>
 
         <div className="dialog-actions">
           <button type="button" className="btn ghost" onClick={onClose}>

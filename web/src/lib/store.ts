@@ -1,3 +1,4 @@
+import { PATIENCE_MS } from "../../../src/intents.js";
 import { PROVIDERS } from "./providers.js";
 import type { SessionSummary, Settings } from "./types.js";
 
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speakQuestions: true,
   followUps: true,
   handsFree: true,
+  patience: "normal",
 };
 
 function read<T>(key: string): T | null {
@@ -59,6 +61,7 @@ export function loadSettings(): Settings {
     if (model) settings.models.anthropic = model;
   }
   if (!(settings.provider in PROVIDERS)) settings.provider = DEFAULT_SETTINGS.provider;
+  if (!(settings.patience in PATIENCE_MS)) settings.patience = DEFAULT_SETTINGS.patience;
   return settings;
 }
 

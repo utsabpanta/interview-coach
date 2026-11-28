@@ -128,21 +128,30 @@ question instead.
 
 ### Talking to the interviewer
 
-The interview is hands-free by default. When you stop talking, a short countdown appears and the
-interviewer replies; keep talking and the countdown resets.
+The interview is hands-free by default. When you stop talking, the interviewer waits, shows a
+short countdown, and then replies; keep talking and the countdown resets. It is built to err on
+the side of letting you finish.
 
 | You say | What happens |
 | --- | --- |
-| An answer, then silence for about 3.5 seconds | The interviewer responds to it. |
-| A short question, such as "what scale should I assume?" | It answers within about a second and a half. |
-| "Can you repeat the question?", "Sorry, I didn't catch that" | It says the question again. Nothing is recorded or scored. |
-| "Could you rephrase that?", "What do you mean by that?" | It rephrases or clarifies. This does not use up one of your turns or lower your score. |
-| "...and that's my answer", "I'm done" | It takes its turn right away, and the sign-off is left out of your answer. |
+| An answer, then silence | The interviewer responds after about 5.5 seconds. It waits longer if you have only just started or stopped mid-sentence ("...and", "...because"). |
+| "Can you repeat the question?", "Sorry, I didn't catch that" | It says the question again. Your words are not used as an answer; if they were meant as one, press **That was my answer**. |
+| "Could you rephrase that?", "What do you mean by that?" | The interviewer is asked to rephrase or clarify, and told not to count it against you or use up one of your turns. |
+| "...and that's my answer", "that's all I have" | It takes its turn right away, and the sign-off is left out of your answer. |
 
-Need longer to think? Press **I'm still thinking** during the countdown, or pause the microphone,
-and the interviewer waits until you press **Send reply**. Hands-free can be turned off in Settings.
+If it replies before you finished, press **I wasn't finished**: your reply is taken back, what you
+said is kept, and you carry on from where you stopped. The interviewer waits longer after that.
+
+Other controls:
+
+- **I'm still thinking**, during the countdown, makes the interviewer wait until you press **Send reply**.
+- **Pause** stops the microphone. Resuming never sends what you said before the pause.
+- **Hands-free: on/off**, on the interview screen, switches automatic replies off entirely.
+- **Settings** (the gear icon, also available mid-interview) sets how long the interviewer waits: about 3.5, 5.5, or 8 seconds.
+
 The microphone is off while the interviewer is speaking, so wait for it to finish, or press
-**Start answering** to cut in.
+**Start answering** to cut in. Only requests that are unmistakable are handled on the spot;
+anything else you say is treated as part of your answer and sent to the interviewer.
 
 Question quality depends on the model you choose. The interviewer is told today's date and asked
 to follow current practice, but a small or older model will still drift toward generic questions.

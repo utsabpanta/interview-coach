@@ -1,4 +1,5 @@
 import type { Exchange, Feedback, InterviewType, PlannedQuestion } from "../../../src/coach.js";
+import type { Patience } from "../../../src/intents.js";
 import type { DeliveryMetrics } from "../../../src/metrics.js";
 import type { Pacing } from "../../../src/pacing.js";
 
@@ -61,4 +62,6 @@ export interface Settings {
   followUps: boolean;
   /** The interviewer replies on its own when the candidate stops talking. */
   handsFree: boolean;
+  /** How long the interviewer waits through silence before replying. */
+  patience: Patience;
 }

@@ -157,6 +157,11 @@ export function App() {
           onComplete={complete}
           onSkip={() => goTo(session, session.index + 1)}
           onEnd={() => finish(session)}
+          onSettingsChange={(next) => {
+            setSettings(next);
+            saveSettings(next);
+          }}
+          onOpenSettings={() => setDialog({})}
         />
       ) : stage === "feedback" && round ? (
         <Feedback session={session} round={round} onRetry={retry} onNext={() => goTo(session, session.index + 1)} onFinish={() => finish(session)} />

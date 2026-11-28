@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeFeedback, normalizePlan } from "../src/coach.js";
+import { EvaluationError, normalizeFeedback, normalizePlan } from "../src/coach.js";
 import { extractJson, listModels, OpenAICompatLLM, ProviderError, stripThinking } from "../src/openai.js";
 
 const TOOL = { name: "answer_feedback", description: "Record feedback.", schema: { type: "object" } };
@@ -109,9 +109,9 @@ describe("extractJson", () => {
 });
 
 describe("normalizing model output", () => {
-  it("coerces sloppy feedback into shape", () => {
+  it("tidies wording but keeps the model's own scores", () => {
     const f = normalizeFeedback({
-      scores: { structure: "4", specificity: 9, relevance: 0, concision: "great" },
+      scores: { structure: "4", specificity: 5, relevance: 1, concision: 2.6 },
       strengths: "Clear opening.",
       improvements: ["Add a number.", "", 7, "Name your role.", "Cut the intro.", "A fourth."],
       rewrite: 42,
@@ -126,10 +126,25 @@ describe("normalizing model output", () => {
     expect(f.changes).toBeUndefined();
   });
 
-  it("survives a completely wrong reply", () => {
-    const f = normalizeFeedback("not an object");
-    expect(f.scores).toEqual({ structure: 3, specificity: 3, relevance: 3, concision: 3 });
-    expect(f.fix).toBeUndefined();
+  it("finds scores inside a tool-call envelope", () => {
+    const scores = { structure: 2, specificity: 2, relevance: 2, concision: 2 };
+    expect(normalizeFeedback({ name: "answer_feedback", arguments: { scores, improvements: ["x"] } }).scores).toEqual(scores);
+    expect(normalizeFeedback({ input: { scores } }).scores).toEqual(scores);
+  });
+
+  // A made-up score looks exactly like a real one, so none is ever invented.
+  it.each([
+    ["an empty object", {}],
+    ["a refusal", { error: "I cannot evaluate this." }],
+    ["text instead of an object", "not an object"],
+    ["a missing score", { scores: { structure: 4, specificity: 4, relevance: 4 } }],
+    ["a ten-point scale", { scores: { structure: 7, specificity: 6, relevance: 8, concision: 10 } }],
+    ["a zero", { scores: { structure: 0, specificity: 3, relevance: 3, concision: 3 } }],
+    ["words for numbers", { scores: { structure: "great", specificity: 3, relevance: 3, concision: 3 } }],
+    ["a fraction as text", { scores: { structure: "4/5", specificity: 3, relevance: 3, concision: 3 } }],
+    ["nulls", { scores: { structure: null, specificity: null, relevance: null, concision: null } }],
+  ])("refuses to score %s", (_name, raw) => {
+    expect(() => normalizeFeedback(raw)).toThrow(EvaluationError);
   });
 
   it("cleans up a plan", () => {
