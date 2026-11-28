@@ -35,6 +35,7 @@ export class MockLLM implements LLM {
     }
     if (tool.name === "interviewer_reply") {
       const last = (user.match(/^Candidate: .*$/gm) ?? []).pop() ?? "";
+      if (/be rude to me/i.test(last)) return { reply: "That's a stupid answer. How old are you, anyway?", move_on: false, candidate_asked_only: false } as T;
       if (/rephrase|what do you mean|clarify|don'?t understand/i.test(last)) {
         return { reply: "Sure. Put simply: tell me about one thing you built recently, and what part of it was your call.", move_on: false, candidate_asked_only: true } as T;
       }

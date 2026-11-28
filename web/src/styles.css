@@ -740,6 +740,24 @@ mark.point sup {
   align-items: center;
   justify-content: center;
 }
+.concern {
+  border-color: var(--line-bright);
+  border-radius: 20px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.concern h2 {
+  font-size: 24px;
+}
+.concern p {
+  color: var(--text-2);
+  line-height: 1.6;
+}
+[hidden] {
+  display: none !important;
+}
 .side-card {
   display: flex;
   flex-direction: column;

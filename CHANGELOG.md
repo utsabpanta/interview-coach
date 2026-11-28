@@ -5,6 +5,9 @@ Notable changes, newest first.
 ## Unreleased
 
 ### Added
+- **Guardrails:** conduct rules on every model request, checks that withhold insulting or improper
+  interviewer replies and questions about protected topics, calm handling of a candidate who
+  swears, and a pause with support information when a candidate seems to be in distress.
 - **On this device (experimental):** a model that runs in the browser, so no API key is needed.
 - **Question packs:** community-written guidance for kinds of roles, with six starter packs.
 - **Coaching points** attached to the exact words they are about, and a filler-word breakdown.

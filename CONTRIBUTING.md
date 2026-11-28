@@ -34,6 +34,7 @@ npm test && npm run build
 | Path | What it holds |
 | --- | --- |
 | `src/coach.ts` | The prompts: planning questions, the interviewer's replies, and scoring. Most improvements to interview quality happen here. |
+| `src/guardrails.ts` | Conduct rules for the interviewer, checks on its output, and the distress check. |
 | `src/openai.ts` | The client for OpenAI-compatible model providers. |
 | `src/metrics.ts`, `src/pacing.ts` | Delivery metrics computed without a model. |
 | `web/src/screens/` | The four screens: start, interview, feedback, scorecard. |

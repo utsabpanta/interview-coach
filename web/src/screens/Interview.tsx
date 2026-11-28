@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { evaluate, interviewerTurn, ROUND_SHAPE, type Context, type Exchange } from "../../../src/coach.js";
+import { soundsDistressed } from "../../../src/guardrails.js";
 import { detectIntent, PATIENCE_MS, pauseBeforeReply, stripSignOff } from "../../../src/intents.js";
 import { analyzeDelivery, countWords, LENGTH_TARGETS } from "../../../src/metrics.js";
 import { analyzePacing } from "../../../src/pacing.js";
@@ -105,6 +106,25 @@ export function Interview({
   const [canResume, setCanResume] = useState(false);
   /** Words that were taken as "repeat the question" and so not used as an answer. */
   const [discarded, setDiscarded] = useState<string | null>(null);
+  /** The candidate may be in real distress: the interview is paused. Holds what the interviewer said, if anything. */
+  const [concern, setConcern] = useState<string | null>(null);
+
+  /** Interview practice can wait: stop everything and check in. Nothing said in that turn is scored. */
+  const pauseForConcern = (reply: string) => {
+    request.current += 1;
+    sending.current = false;
+    recognizer.current?.stop();
+    turnToken.current = null;
+    cancelSpeech.current();
+    exchanges.current = exchanges.current.slice(0, -1);
+    setThread(exchanges.current);
+    resumable.current = false;
+    setCanResume(false);
+    setCountdown(null);
+    setNotice(null);
+    setPhase("paused");
+    setConcern(reply);
+  };
 
   const alive = useRef(true);
   const exchanges = useRef<Exchange[]>([]);
@@ -367,6 +387,10 @@ export function Interview({
       const next = await interviewerTurn(llm, ctx, topic, exchanges.current, turnsLeft);
       // The candidate may have taken their reply back while the interviewer was thinking.
       if (!alive.current || mine !== request.current) return;
+      if (next.concern) {
+        pauseForConcern(next.reply);
+        return;
+      }
       if (next.aside && asides.current < MAX_ASIDES) {
         // The candidate asked to rephrase or clarify: answer them and keep their turn.
         asides.current += 1;
@@ -439,6 +463,11 @@ export function Interview({
       setCanResume(true);
     }
 
+    // Checked here as well as by the interviewer, so it is caught even when no reply is requested.
+    if (answer && soundsDistressed(answer)) {
+      pauseForConcern("");
+      return;
+    }
     if (!wrapUp && answer && maxTurns > 1) {
       await respond();
       return;
@@ -601,7 +630,37 @@ export function Interview({
             </div>
           </div>
 
-          <div className="card answer">
+          {concern !== null ? (
+            <section className="card concern" role="alertdialog" aria-labelledby="concern-title">
+              <h2 id="concern-title">Let's pause the interview</h2>
+              {concern ? <p>{concern}</p> : null}
+              <p>
+                It sounds like you may be going through something hard, and that matters more than interview practice. Nothing from that
+                answer will be scored.
+              </p>
+              <p>
+                If you are thinking about harming yourself or you are in danger, please contact your local emergency number or a crisis line in
+                your country now, or reach out to someone you trust.
+              </p>
+              <div className="row">
+                <button type="button" className="btn primary" onClick={onEnd}>
+                  End the interview
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    setConcern(null);
+                    begin(prompt, { silent: true });
+                  }}
+                >
+                  I'm okay, carry on
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          <div className="card answer" hidden={concern !== null}>
             <div className="answer-head">
               <p className={`status ${phase === "listening" ? "live" : ""}`} role="status">
                 <span className="dot" aria-hidden="true" />

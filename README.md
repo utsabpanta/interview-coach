@@ -118,6 +118,26 @@ answers. Pace is only measured for spoken answers.
 included GitHub Actions workflow tests the project and publishes it to GitHub Pages on every push
 to `main`; turn it on once under **Settings → Pages → Source: GitHub Actions**.
 
+## Guardrails
+
+An interview is a professional conversation, and practice should be too. Callback applies two
+layers: instructions given to the model on every request, and checks on what the model sends back.
+
+| Situation | What Callback does |
+| --- | --- |
+| The interviewer would ask about age, family, religion, origin, health, or another protected topic | The model is told never to. A reply or planned question that does anyway is withheld and replaced with a neutral follow-up. |
+| The interviewer or the feedback would swear at, insult, or belittle you | Same: told not to, and withheld if it happens. Insulting feedback items are dropped; scores are kept. |
+| You swear or are rude | The interviewer stays calm and carries on, without a lecture. The feedback mentions once that it would count against you in a real interview. |
+| You say something that suggests real distress or thoughts of self-harm | The interview pauses, nothing from that answer is scored, and you are pointed to emergency and crisis support. You can end the session or carry on. |
+| A job posting, resume, or question pack contains instructions meant for the AI | The model is told to treat all of it as material to read, never as instructions. |
+
+These reduce bad behavior; they cannot rule it out. The checks are simple English patterns, and
+how well a model follows instructions varies, with small local and on-device models the least
+reliable. The distress check errs toward noticing, so it will sometimes pause over a figure of
+speech. Callback is a practice tool and not a source of mental health support. If you see the
+interviewer say something it should not, please
+[report it](https://github.com/utsabpanta/interview-coach/issues/new/choose).
+
 ## Privacy
 
 Callback has no backend, accounts, or analytics, and loads nothing from other sites: fonts and
@@ -249,6 +269,7 @@ npm run build
 src/                 coaching logic shared by the web app and the CLI
   coach.ts           prompts: plan questions, follow up, evaluate
   openai.ts          client for any OpenAI-compatible model API
+  guardrails.ts      conduct rules and checks on what the interviewer says
   metrics.ts         local delivery metrics
   pacing.ts          pace and pause analysis
   cli.ts, ...        the command-line tool

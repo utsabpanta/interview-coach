@@ -18,6 +18,9 @@ export interface MockOptions {
 
 const QUIT = "/quit";
 const MAX_ASIDES = 3;
+
+export const CONCERN_MESSAGE =
+  "Let's pause here. It sounds like you may be going through something hard, and that matters more than interview practice. If you are thinking about harming yourself or you are in danger, please contact your local emergency number or a crisis line in your country now, or reach out to someone you trust.";
 const SKIP = "/skip";
 
 export async function runMock(llm: LLM, io: IO, ctx: Context, opts: MockOptions): Promise<Session> {
@@ -61,6 +64,13 @@ export async function runMock(llm: LLM, io: IO, ctx: Context, opts: MockOptions)
 
       const answered = exchanges.filter((e) => !e.aside).length;
       const next = await interviewerTurn(llm, ctx, topic, exchanges, maxTurns - answered);
+      if (next.concern) {
+        // Interview practice can wait. Say so, and stop without scoring.
+        exchanges.pop();
+        io.say(`\n${next.reply ? `${next.reply}\n\n` : ""}${CONCERN_MESSAGE}\n`);
+        ended = true;
+        break;
+      }
       if (next.reply) io.say(`\n${next.reply}\n`);
       if (next.aside && asides < MAX_ASIDES) {
         // A request to rephrase or clarify does not use up one of the candidate's turns.
