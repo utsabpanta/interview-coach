@@ -74,6 +74,7 @@ describe("scorecard maths", () => {
       id: "s1",
       startedAt: "2026-11-22T10:00:00Z",
       role: "Backend Engineer",
+      intro: "",
       type: "behavioral",
       setup: { jobDescription: "secret posting", resume: "", type: "behavioral" },
       plan: [],

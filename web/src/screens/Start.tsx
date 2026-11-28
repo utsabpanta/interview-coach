@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { INTERVIEW_TYPES, type InterviewType } from "../../../src/coach.js";
+import { INTERVIEW_TYPES, ROUND_SHAPE, type InterviewType } from "../../../src/coach.js";
 import { Header, Icon } from "../components.js";
 import { titleCase } from "../lib/score.js";
 import type { SessionSummary, Setup } from "../lib/types.js";
@@ -11,7 +11,7 @@ const TYPE_LABEL: Record<InterviewType, string> = {
 };
 
 const STEPS = [
-  ["01", "Talk, don't type", "The interviewer asks out loud and follows up on your weakest claim, the way a real panel does."],
+  ["01", "A real conversation", "The interviewer listens, answers your questions, and pushes on weak claims, then leaves time for you to ask about the role."],
   ["02", "One fix, then retry", "After each answer you get the single most important change, and a second attempt to prove it."],
   ["03", "Watch readiness climb", "A readiness score for the role shows where you stand and what to drill for ten minutes tomorrow."],
 ];
@@ -60,7 +60,7 @@ export function Start({
           <p className="eyebrow">Open-source interview practice</p>
           <h1>Paste a job posting. Be in the interview in 60 seconds.</h1>
           <p className="lede">
-            A spoken mock interview built for that exact role. You talk, it pushes back, and you get one thing to fix after every answer.
+            A spoken, two-way mock interview built for that exact role, run the way teams interview now. You get one thing to fix after every topic.
           </p>
         </div>
 
@@ -112,7 +112,9 @@ export function Start({
           ) : null}
 
           <div className="start-footer">
-            <p className="muted">5 questions, about 10 minutes, out loud</p>
+            <p className="muted">
+              {ROUND_SHAPE[type].topics + 1} topics, about 15 minutes, a real back-and-forth
+            </p>
             <button type="submit" className="btn primary large" disabled={busy}>
               {Icon.mic}
               {busy ? "Preparing your interview..." : "Start interview"}

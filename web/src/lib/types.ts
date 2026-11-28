@@ -26,6 +26,8 @@ export interface Session {
   id: string;
   startedAt: string;
   role: string;
+  /** The interviewer's spoken opening for the round. */
+  intro: string;
   type: InterviewType;
   setup: Setup;
   /** Set when the session is a focused drill on one competency. */

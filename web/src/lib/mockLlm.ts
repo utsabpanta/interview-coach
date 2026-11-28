@@ -18,12 +18,19 @@ export class MockLLM implements LLM {
       const drill = /must probe "([^"]+)"/.exec(user)?.[1];
       const plan: InterviewPlan = {
         role: "Senior Backend Engineer",
+        intro: "Hi, I'm the hiring manager for this role. We'll talk through a few topics and leave time for your questions.",
         questions: Array.from({ length: count }, (_, i) => ({
           question: `Mock question ${i + 1}: tell me about a project you owned that went off the rails.`,
           competency: drill ?? COMPETENCIES.behavioral[i % COMPETENCIES.behavioral.length],
         })),
       };
       return plan as T;
+    }
+    if (tool.name === "interviewer_reply") {
+      const turns = (user.match(/^Candidate:/gm) ?? []).length;
+      const asked = /Candidate: [^\n]*\?\s*$/m.test(user);
+      const reply = { reply: `${asked ? "Good question. Let's say about a million users. " : ""}What was your own part in that decision?`, move_on: false };
+      return (turns >= 2 ? { reply: "Thanks, that gives me a clear picture.", move_on: true } : reply) as T;
     }
     const retry = user.includes("This is a retry");
     const n = this.evaluations++;

@@ -42,6 +42,7 @@ export function Feedback({
   const latest = round.attempts[round.attempts.length - 1];
   const before = round.attempts.length > 1 ? round.attempts[round.attempts.length - 2] : null;
   const isLast = session.index >= session.plan.length - 1;
+  const closing = session.plan[session.index]?.kind === "candidate-questions";
   const fix = latest.feedback.fix ?? { headline: latest.feedback.improvements[0] ?? "Tighten the answer.", detail: "" };
   const delta = before ? Math.round((averageScore(latest.feedback) - averageScore(before.feedback)) * 10) / 10 : 0;
   const changes = latest.feedback.changes ?? [];
@@ -57,7 +58,8 @@ export function Feedback({
       <main className="stack">
         <div className="question-recap">
           <p className="strong">
-            Question {session.index + 1} of {session.plan.length} <span className="muted">· {round.competency}</span>
+            Question {session.index + 1} of {session.plan.length}{" "}
+            <span className="muted">· {closing ? "your questions" : round.competency.replace(/-/g, " ")}</span>
           </p>
           <p className="muted">{round.question}</p>
         </div>
@@ -70,7 +72,7 @@ export function Feedback({
           </div>
           {fix.quote ? (
             <figure className="quote">
-              <figcaption className="muted small-text">From your answer</figcaption>
+              <figcaption className="muted small-text">From what you said</figcaption>
               <blockquote>
                 "<mark>{fix.quote}</mark>"
               </blockquote>
@@ -80,7 +82,7 @@ export function Feedback({
 
         <section className="compare" aria-label={before ? "Before and after" : "Your score"}>
           {before ? <AttemptCard title="Previous attempt" attempt={before} tone="neutral" /> : null}
-          <AttemptCard title={before ? "This attempt" : "Your answer"} attempt={latest} tone="accent" />
+          <AttemptCard title={before ? "This attempt" : closing ? "Your questions" : "Your answers"} attempt={latest} tone="accent" />
 
           {before ? (
             <div className="card change">
@@ -122,7 +124,25 @@ export function Feedback({
         </section>
 
         <details className="card rewrite">
-          <summary>See a stronger version of your answer</summary>
+          <summary>Review the conversation</summary>
+          <ol className="thread in-card">
+            {latest.exchanges.map((e, i) => (
+              <li key={i}>
+                <p className="said interviewer">
+                  <span className="who">Interviewer</span>
+                  {e.question}
+                </p>
+                <p className="said you">
+                  <span className="who">You</span>
+                  {e.answer}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </details>
+
+        <details className="card rewrite">
+          <summary>{closing ? "See sharper questions you could ask" : "See a stronger version of your answer"}</summary>
           <p>{latest.feedback.rewrite}</p>
           <p className="muted small-text">Built only from what you said. Bracketed gaps are details for you to fill in.</p>
         </details>

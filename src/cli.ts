@@ -85,7 +85,7 @@ program
   .option("-s, --stories <file>", "rehearse a story bank: every question targets one of its stories")
   .option("--story <text>", "with --stories, only rehearse stories matching this text")
   .option("-n, --questions <count>", "number of questions", intBetween(1, 15), 5)
-  .option("--no-follow-ups", "skip the follow-up question after each answer")
+  .option("--no-follow-ups", "one answer per question, with no back-and-forth")
   .option("-o, --out <dir>", "directory for saved sessions", "sessions")
   .action(async (opts) => {
     if (opts.story && !opts.stories) throw new Error("--story needs --stories <file>.");

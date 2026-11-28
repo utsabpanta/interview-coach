@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { planInterview } from "../../src/coach.js";
+import { planInterview, ROUND_SHAPE } from "../../src/coach.js";
 import type { LLM } from "../../src/types.js";
 import { SettingsDialog } from "./components.js";
 import { explainError } from "./lib/llm.js";
@@ -15,7 +15,6 @@ import { Start } from "./screens/Start.js";
 
 type Stage = "start" | "interview" | "feedback" | "scorecard";
 
-const QUESTIONS = 5;
 const DRILL_QUESTIONS = 3;
 
 // Dev server only: `?mock=1` swaps in a scripted model so the flow can be clicked through without a key.
@@ -48,13 +47,16 @@ export function App() {
             resume: setup.resume || undefined,
             focusCompetency: drill,
           },
-          drill ? DRILL_QUESTIONS : QUESTIONS,
+          // A full round ends with the candidate's own questions; a drill does not.
+          drill ? DRILL_QUESTIONS : ROUND_SHAPE[setup.type].topics + 1,
+          { closing: !drill },
         );
         if (plan.questions.length === 0) throw new Error("The model returned no questions. Try again.");
         setSession({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           startedAt: new Date().toISOString(),
           role: plan.role,
+          intro: drill ? "" : plan.intro,
           type: setup.type,
           setup,
           drill,

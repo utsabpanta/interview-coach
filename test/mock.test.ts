@@ -16,11 +16,11 @@ function fakeLLM(): LLM & { calls: string[] } {
   return {
     calls,
     async text() {
-      calls.push("followUp");
-      return "What was your own role?";
+      return "";
     },
     async structured<T>(_system: string, _user: string, tool: ToolSpec): Promise<T> {
       calls.push(tool.name);
+      if (tool.name === "interviewer_reply") return { reply: "What was your own role?", move_on: false } as T;
       if (tool.name === "interview_plan") {
         return {
           questions: [
@@ -48,7 +48,7 @@ function scriptedIO(answers: Array<string | null>): IO & { output: string[] } {
 const ctx = { type: "behavioral" as const };
 
 describe("runMock", () => {
-  it("asks a follow-up, evaluates, and records each round", async () => {
+  it("holds a back-and-forth, evaluates, and records each round", async () => {
     const llm = fakeLLM();
     const io = scriptedIO(["I broke prod and fixed it.", "I led the rollback.", "/skip", "/quit"]);
     const session = await runMock(llm, io, ctx, { count: 3, followUps: true });
@@ -56,7 +56,7 @@ describe("runMock", () => {
     expect(session.rounds).toHaveLength(1);
     expect(session.rounds[0].exchanges).toHaveLength(2);
     expect(session.rounds[0].competency).toBe("failure");
-    expect(llm.calls).toEqual(["interview_plan", "followUp", "answer_feedback"]);
+    expect(llm.calls).toEqual(["interview_plan", "interviewer_reply", "interviewer_reply", "answer_feedback"]);
     expect(overallScore(session)).toBe(4);
   });
 
@@ -66,7 +66,7 @@ describe("runMock", () => {
     const session = await runMock(llm, io, ctx, { count: 3, followUps: false });
 
     expect(session.rounds).toHaveLength(2);
-    expect(llm.calls).not.toContain("followUp");
+    expect(llm.calls).not.toContain("interviewer_reply");
   });
 
   it("renders a Markdown transcript", async () => {

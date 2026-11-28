@@ -264,7 +264,7 @@ export function SettingsDialog({
         </label>
         <label className="check">
           <input type="checkbox" checked={draft.followUps} onChange={(e) => setDraft({ ...draft, followUps: e.target.checked })} />
-          Ask a follow-up after each answer
+          Two-way conversation: the interviewer replies and probes
         </label>
 
         <div className="dialog-actions">

@@ -5,9 +5,20 @@ export const INTERVIEW_TYPES: InterviewType[] = ["behavioral", "technical", "sys
 
 /** Fixed labels, so progress can be tracked by competency across sessions. */
 export const COMPETENCIES: Record<InterviewType, string[]> = {
-  behavioral: ["ownership", "conflict", "failure", "ambiguity", "influence", "delivery", "leadership", "growth"],
-  technical: ["fundamentals", "debugging", "architecture", "testing", "performance", "tooling"],
-  "system-design": ["requirements", "data-modeling", "api-design", "scalability", "reliability", "trade-offs"],
+  behavioral: ["ownership", "conflict", "failure", "ambiguity", "influence", "prioritization", "delivery", "leadership", "growth", "ai-collaboration", "curiosity"],
+  technical: ["debugging", "code-review", "system-understanding", "ai-assisted-development", "testing", "performance", "security", "fundamentals"],
+  "system-design": ["requirements", "data-modeling", "api-design", "scalability", "reliability", "trade-offs", "ai-systems", "cost"],
+};
+
+/**
+ * How long a round runs: topics planned by the model, and how many times the
+ * candidate may speak on each before the interviewer moves on. Design rounds
+ * go deep on few problems; behavioral rounds cover more ground.
+ */
+export const ROUND_SHAPE: Record<InterviewType, { topics: number; turns: number }> = {
+  behavioral: { topics: 4, turns: 3 },
+  technical: { topics: 3, turns: 4 },
+  "system-design": { topics: 2, turns: 6 },
 };
 
 export interface Context {
@@ -28,6 +39,8 @@ export interface PlannedQuestion {
   competency: string;
   /** Title of the story-bank story this question targets, in rehearsal mode. */
   story?: string;
+  /** "candidate-questions" is the closing part, where the candidate interviews the interviewer. */
+  kind?: "candidate-questions";
 }
 
 export interface Exchange {
@@ -55,14 +68,27 @@ export interface Feedback {
 export interface InterviewPlan {
   /** Short job title taken from the job description, or a generic one. */
   role: string;
+  /** The interviewer's spoken opening: who they are and how the round will run. */
+  intro: string;
   questions: PlannedQuestion[];
 }
 
 export const DIMENSIONS = ["structure", "specificity", "relevance", "concision"] as const;
 
-const INTERVIEWER = `You are an experienced hiring-panel interviewer at a strong technology company.
-You are rigorous and fair. You ask one clear question at a time, the way a real interviewer would,
-and you never invent facts about the candidate.`;
+const INTERVIEWER = `You are an experienced hiring manager running a live, spoken interview.
+You are rigorous, fair, and human: you listen, react to what was actually said, answer the
+candidate's questions, and push on anything vague. You ask one clear question at a time and you
+never invent facts about the candidate.`;
+
+/** Keeps the model anchored to current practice instead of the stock questions it has seen most. */
+function practiceNote(): string {
+  return `Today's date is ${new Date().toISOString().slice(0, 10)}. Interview the way strong teams do now:
+practical, conversational, and close to the real work of this role. AI tools are part of everyday
+work, so judge how candidates direct them, check their output, and know their limits. Never use
+stock or dated questions: no "greatest weakness", "where do you see yourself in five years",
+"why should we hire you", brainteasers, trivia, or memorized algorithm puzzles. If the role is not
+a software role, apply the same principles to that field's real work.`;
+}
 
 export const COACH = `You are a direct, practical interview coach. You judge answers the way a hiring panel would.
 Be specific: point at the exact part of the answer you mean. Do not flatter. Never invent facts,
@@ -78,12 +104,24 @@ function contextBlock(ctx: Context): string {
 }
 
 const TYPE_GUIDE: Record<InterviewType, string> = {
-  behavioral:
-    "Ask about past behavior (\"Tell me about a time...\"). Cover different competencies.",
-  technical:
-    "Ask conceptual and practical engineering questions suited to the role and the candidate's stack. No questions that require writing long code.",
-  "system-design":
-    "Ask open-ended design problems suited to the role's scale and domain. State the problem in two or three sentences and let the candidate drive.",
+  behavioral: `Ask about real past work, never hypotheticals. Start with a deep dive into one recent
+project (from the resume when there is one): what they built, the decisions that were theirs, and
+what they would change. Include one question about how they actually work with AI tools, asked
+through their workflow and judgment ("walk me through a recent piece of work where AI did part of
+it; what did you check, and what did you not trust it with?") rather than "which tools do you use".
+Each question covers a different competency.`,
+  technical: `Ask practical, scenario-based questions that simulate the job and can be worked through
+aloud. Draw from: debugging a production incident step by step; reviewing a described change or a
+piece of AI-generated code for what is wrong or risky; getting up to speed on an unfamiliar codebase
+or system; designing a small real component such as a rate limiter, a retry policy, or a cache; and
+deciding how to test and ship a risky change. Include one about working with AI coding tools:
+directing them, verifying what they produce, and knowing when not to rely on them. State each
+scenario concretely, with enough detail to reason about. Nothing that needs code written out.`,
+  "system-design": `Pose open-ended design problems that fit the role's domain and scale. State each
+in two or three sentences and leave the requirements deliberately open, so the candidate has to ask
+clarifying questions before designing. Unless the role clearly has nothing to do with it, make one
+problem an AI- or LLM-powered feature in production, where evaluation, latency, cost, and failure
+handling matter. Expect trade-offs, cost, and operations to be discussed, not just components.`,
 };
 
 function planTool(ctx: Context): ToolSpec {
@@ -103,9 +141,14 @@ function planTool(ctx: Context): ToolSpec {
       type: "object",
       properties: {
         role: { type: "string", description: "The job title from the job description in a few words, or \"General practice\" if there is none." },
+        intro: {
+          type: "string",
+          description:
+            "Your spoken opening, two sentences: greet the candidate, say you are the hiring manager for the role, and say how this round will run. Do not invent a name for yourself or facts about the company.",
+        },
         questions: { type: "array", items: { type: "object", properties: item, required } },
       },
-      required: ["role", "questions"],
+      required: ["role", "intro", "questions"],
     },
   };
 }
@@ -114,11 +157,37 @@ export async function planQuestions(llm: LLM, ctx: Context, count: number): Prom
   return (await planInterview(llm, ctx, count)).questions;
 }
 
-export async function planInterview(llm: LLM, ctx: Context, count: number): Promise<InterviewPlan> {
+/** The closing part of a real interview: the candidate asks, the interviewer answers. */
+export function closingTopic(): PlannedQuestion {
+  return {
+    question: "We have a few minutes left, and I want to leave them for you. What would you like to ask me about the role or the team?",
+    competency: "curiosity",
+    kind: "candidate-questions",
+  };
+}
+
+/**
+ * Plans a round. With `closing`, the last of the `count` topics is the
+ * candidate's own questions for the interviewer.
+ */
+export async function planInterview(llm: LLM, ctx: Context, count: number, opts: { closing?: boolean } = {}): Promise<InterviewPlan> {
+  const planned = opts.closing ? Math.max(1, count - 1) : count;
+  const plan = await planTopics(llm, ctx, planned);
+  return opts.closing ? { ...plan, questions: [...plan.questions, closingTopic()] } : plan;
+}
+
+async function planTopics(llm: LLM, ctx: Context, count: number): Promise<InterviewPlan> {
   let user = `${contextBlock(ctx)}
 
-Plan exactly ${count} interview questions. ${TYPE_GUIDE[ctx.type]}
-Tailor them to the job description and resume when provided, and order them from warm-up to hardest.`;
+${practiceNote()}
+
+Plan exactly ${count} interview questions. Each one opens a short conversation: you will follow up
+live, so ask the opening question only, without sub-questions.
+
+${TYPE_GUIDE[ctx.type]}
+
+Tailor everything to the job description and resume when provided, and order the questions from
+warm-up to hardest.`;
   if (ctx.stories) {
     user += `
 
@@ -137,19 +206,82 @@ and each question's competency must be "${ctx.focusCompetency}".`;
   return normalizePlan(out, ctx, count);
 }
 
-export async function followUp(llm: LLM, ctx: Context, exchange: Exchange): Promise<string> {
+export interface InterviewerReply {
+  /** What the interviewer says next. */
+  reply: string;
+  /** True when the interviewer is finished with this topic. */
+  done: boolean;
+}
+
+const TURN_TOOL: ToolSpec = {
+  name: "interviewer_reply",
+  description: "The interviewer's next spoken turn in the conversation.",
+  schema: {
+    type: "object",
+    properties: {
+      reply: { type: "string", description: "What you say next, as spoken words: one to three sentences." },
+      move_on: {
+        type: "boolean",
+        description: "True when this topic is covered well enough, or the candidate is stuck or finished, and the interview should move to the next topic.",
+      },
+    },
+    required: ["reply", "move_on"],
+  },
+};
+
+function renderConversation(exchanges: Exchange[]): string {
+  return exchanges.map((e) => `Interviewer: ${e.question}\nCandidate: ${e.answer}`).join("\n\n");
+}
+
+/**
+ * The interviewer's side of a live, two-way conversation on one topic: it
+ * reacts, answers the candidate's questions, probes, and decides when to move on.
+ * `turnsLeft` is how many more times the candidate may speak on this topic.
+ */
+export async function interviewerTurn(
+  llm: LLM,
+  ctx: Context,
+  topic: PlannedQuestion,
+  exchanges: Exchange[],
+  turnsLeft: number,
+): Promise<InterviewerReply> {
+  const closing = topic.kind === "candidate-questions";
+  const rules = closing
+    ? `This is the part of the interview where the candidate asks you questions. Answer what they just
+asked, briefly and candidly, as the hiring manager for this role. Use the job description; where it
+does not say, describe what is typical for such a team and say you would confirm the specifics.
+Then invite the next question. If the candidate has nothing more to ask, set move_on to true and
+close the interview warmly in one sentence.`
+    : `Give your next turn. Rules:
+- React to what the candidate just said, briefly and specifically, the way a person would. Do not
+  praise, grade, or summarize their answer back to them.
+- If the candidate asked you something (a clarification, a requirement, a number, what you meant),
+  answer it directly first. For details you were not given, state a reasonable assumption for this
+  exercise ("Let's say...").
+- Then ask one thing: probe the vaguest claim, the missing result, their own part in it, or a
+  trade-off; push back if something does not add up; in a technical or design discussion, add a
+  constraint or change a requirement, or give a small hint if they are stuck.
+- One question at a time, no lists, and never a question you already asked. Do not answer your own
+  question or solve the problem for them.
+- When the topic is covered, or no turns remain, set move_on to true and reply with a short closing
+  remark only, with no question in it.`;
+
   const user = `${contextBlock(ctx)}
 
-You asked: ${exchange.question}
+You are assessing: ${topic.competency}
 
-The candidate answered:
-<answer>
-${exchange.answer}
-</answer>
+<conversation>
+${renderConversation(exchanges)}
+</conversation>
 
-Ask the single most useful follow-up question: probe the vaguest claim, the missing result, or the
-candidate's own role. Reply with the question only.`;
-  return llm.text(INTERVIEWER, user, 300);
+Turns the candidate has left on this topic after your reply: ${Math.max(0, turnsLeft)}.
+
+${rules}`;
+
+  const raw = await llm.structured<{ reply?: unknown; move_on?: unknown }>(INTERVIEWER, user, TURN_TOOL, 600);
+  const reply = typeof raw?.reply === "string" ? raw.reply.trim() : "";
+  const done = turnsLeft <= 0 || raw?.move_on === true || raw?.move_on === "true" || !reply;
+  return { reply, done };
 }
 
 const scoreSchema = { type: "integer", minimum: 1, maximum: 5 };
@@ -201,16 +333,28 @@ export async function evaluate(
   exchanges: Exchange[],
   story?: string,
   previous?: PreviousAttempt,
+  topic?: Pick<PlannedQuestion, "kind" | "competency">,
 ): Promise<Feedback> {
-  const transcript = exchanges
-    .map((e, i) => `${i === 0 ? "Question" : "Follow-up"}: ${e.question}\nAnswer: ${e.answer}`)
-    .join("\n\n");
+  const closing = topic?.kind === "candidate-questions";
   let user = `${contextBlock(ctx)}
 
-Evaluate the candidate's answer to the main question, taking the follow-up into account.
+${
+  closing
+    ? `This was the closing part of the interview, where the candidate asks the interviewer questions.
+Evaluate the candidate's questions, not answers: structure means they led with what matters most
+and followed up on what they heard; specificity means the questions were about this role and team
+and not ones that fit any company; relevance means they help decide whether to take the job and
+show real interest; concision means they were asked plainly. The "rewrite" is two or three sharper
+questions they could have asked.`
+    : `Evaluate how the candidate did across this whole conversation on one interview topic${topic ? ` (${topic.competency})` : ""}.
+Judge the substance of what they said, how they handled the interviewer's probing, and whether
+they got more specific under pressure or stayed vague. Asking the interviewer a good clarifying
+question counts in their favor, especially on a design or technical problem. The "rewrite" is a
+stronger version of their main answer.`
+}
 
 <transcript>
-${transcript}
+${renderConversation(exchanges)}
 </transcript>`;
   if (ctx.stories && story) {
     user += `
@@ -293,6 +437,7 @@ export function normalizeFeedback(raw: unknown): Feedback {
 export function normalizePlan(raw: unknown, ctx: Context, count: number): InterviewPlan {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const allowed = COMPETENCIES[ctx.type];
+  const intro = text(r.intro);
   const questions = (Array.isArray(r.questions) ? r.questions : [])
     .map((q): PlannedQuestion | null => {
       const item = (q && typeof q === "object" ? q : {}) as Record<string, unknown>;
@@ -304,7 +449,7 @@ export function normalizePlan(raw: unknown, ctx: Context, count: number): Interv
     })
     .filter((q): q is PlannedQuestion => q !== null)
     .slice(0, count);
-  return { role: text(r.role) || "General practice", questions };
+  return { role: text(r.role) || "General practice", intro, questions };
 }
 
 export function averageScore(f: Feedback): number {

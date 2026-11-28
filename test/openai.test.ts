@@ -140,6 +140,7 @@ describe("normalizing model output", () => {
     );
     expect(plan).toEqual({
       role: "General practice",
+      intro: "",
       questions: [
         { question: "Q1?", competency: "conflict" },
         { question: "Q2?", competency: "grit" },
@@ -147,6 +148,6 @@ describe("normalizing model output", () => {
       ],
     });
     expect(normalizePlan({ questions: [{ question: "Q?", competency: "x" }] }, { type: "behavioral", focusCompetency: "failure" }, 5).questions[0].competency).toBe("failure");
-    expect(normalizePlan(null, { type: "technical" }, 5)).toEqual({ role: "General practice", questions: [] });
+    expect(normalizePlan(null, { type: "technical" }, 5)).toEqual({ role: "General practice", intro: "", questions: [] });
   });
 });

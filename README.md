@@ -2,12 +2,14 @@
 
 **Paste a job posting. Be in the interview in 60 seconds.**
 
-Callback is an open-source app for spoken interview practice. It reads a job posting, interviews
-you out loud for that exact role, and after every answer gives you the one thing to fix and a
-second attempt to prove it.
+Callback is an open-source app for spoken interview practice. It reads a job posting, holds a
+two-way interview with you out loud for that exact role, and after every topic gives you the one
+thing to fix and a second attempt to prove it.
 
-- **Talk, don't type.** The interviewer asks aloud and follows up on your weakest claim. Your answer is transcribed as you speak.
-- **One fix, then retry.** Each answer is scored on structure, specificity, relevance, and concision, with a single most important change and a before-and-after comparison when you try again.
+- **A real conversation.** The interviewer reacts to what you say, answers your clarifying questions, pushes back on vague claims, and moves on when a topic is covered. You talk; your words are transcribed as you speak.
+- **Interviews the way they are run now.** Questions are practical and close to the job: project deep dives, production incidents, reviewing AI-generated code, designing AI-powered features, and how you work with AI tools. No brainteasers, trivia, or "greatest weakness".
+- **Your turn to ask.** Each round ends with your questions for the interviewer, and those are scored too.
+- **One fix, then retry.** Each conversation is scored on structure, specificity, relevance, and concision, with a single most important change and a before-and-after comparison when you try again.
 - **A readiness score for the role.** The scorecard shows where you stand by skill, how you sounded (pace, filler words, "I" versus "we"), and a ten-minute drill on your weakest skill.
 - **Free and open models.** Use a free hosted tier (Groq, Google Gemini, OpenRouter), a model running on your own computer (Ollama, LM Studio), or Claude.
 - **No signup and no server.** The app is a static site. It runs in your browser and talks straight to the model provider you choose; your history never leaves that browser.
@@ -53,7 +55,8 @@ page from calling a local server; if that happens, run the app locally as above.
 
 **Which model?** Feedback quality depends on the model. Larger models give sharper, more specific
 feedback; small local models are usable but looser, and may be slow without a GPU. One interview
-makes roughly a dozen model calls, which matters on free tiers with daily caps.
+makes roughly 15 to 25 model calls, one for each interviewer reply and each score, which matters
+on free tiers with daily caps.
 
 To try the flow without a key, open the dev server with `?mock=1` (for example
 `http://localhost:5173/?mock=1`). This uses a scripted stand-in for the model, so the questions
@@ -85,9 +88,25 @@ Callback has no backend, accounts, or analytics. What that means in practice:
 Because keys live in the browser, prefer free-tier keys or keys with a spending limit, and only run
 builds of Callback that you trust.
 
+## How a round runs
+
+| Round | Topics | Turns per topic |
+| --- | --- | --- |
+| Behavioral | 4, then your questions | up to 3 |
+| Technical | 3, then your questions | up to 4 |
+| System design | 2, then your questions | up to 6 |
+
+A turn is one thing you say. After each, the interviewer replies: it may answer a question you
+asked, probe further, change a requirement, or wrap up the topic. You can end a topic early with
+**Finish this question**. Turning off two-way conversation in Settings gives one answer per
+question instead.
+
+Question quality depends on the model you choose. The interviewer is told today's date and asked
+to follow current practice, but a small or older model will still drift toward generic questions.
+
 ## How scoring works
 
-Every answer gets four scores from 1 to 5. The readiness score is the average across your answers
+Every conversation gets four scores from 1 to 5. The readiness score is the average across your answers
 (each question counted at its latest attempt) as a percentage of the maximum; 80 is marked as
 interview-ready. Delivery metrics are computed locally, without a model: word count, speaking
 time, filler words, and pronoun use.

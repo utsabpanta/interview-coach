@@ -7,7 +7,7 @@ bank, and a doc-to-deck pipeline. Run the commands below from the repository roo
 
 | Command | Purpose |
 | --- | --- |
-| `coach mock` | An interactive mock interview. The interviewer asks a question, probes with one follow-up, then scores your answer and rewrites it. With `--stories`, it rehearses your story bank. |
+| `coach mock` | An interactive mock interview held as a conversation. The interviewer replies to what you say and you can ask questions back; each topic is then scored and rewritten. With `--stories`, it rehearses your story bank. |
 | `coach voice` | Spoken practice. Records your answer (or loads a recording), transcribes it, and reports pace, pauses, and filler words alongside the content feedback. |
 | `coach review` | Scores a single written answer or transcript from a file. |
 | `coach progress` | Score trends across saved sessions, by competency and by scoring dimension. |
