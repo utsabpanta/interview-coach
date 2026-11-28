@@ -67,7 +67,7 @@ export function Interview({
   onOpenSettings: () => void;
   /** The candidate chose to type earlier in this interview. */
   preferTyping: boolean;
-  onPreferTyping: () => void;
+  onPreferTyping: (typing: boolean) => void;
 }) {
   const topic = session.plan[session.index];
   const closing = topic.kind === "candidate-questions";
@@ -318,11 +318,23 @@ export function Interview({
   const answered = () => exchanges.current.filter((e) => !e.aside).length;
 
   const switchToTyping = () => {
+    if (typingRef.current) return;
     recognizer.current?.stop();
     setTyped(spoken);
     setTyping(true);
     usedTyping.current = true;
-    onPreferTyping();
+    onPreferTyping(true);
+  };
+
+  /** Back to speaking, carrying on from whatever has been typed so far. */
+  const switchToSpeaking = () => {
+    if (!voiceSupported || !typingRef.current) return;
+    const soFar = typed.trim();
+    typingRef.current = false;
+    setTyping(false);
+    setNotice(null);
+    onPreferTyping(false);
+    begin(prompt, { initial: soFar, silent: true });
   };
 
   /** Skipping or ending throws away what was said on this topic, so ask first. */
@@ -666,7 +678,21 @@ export function Interview({
                 <span className="dot" aria-hidden="true" />
                 {status}
               </p>
-              <p className="timer">{usedTyping.current ? "" : clock(turnSeconds)}</p>
+              <div className="row">
+                <p className="timer">{usedTyping.current ? "" : clock(turnSeconds)}</p>
+                {voiceSupported ? (
+                  <div className="mode" role="group" aria-label="How to answer">
+                    <button type="button" className="mode-speak" aria-pressed={!typing} disabled={busy || phase === "stalled" || phase === "failed"} onClick={switchToSpeaking}>
+                      {Icon.mic}
+                      Speak
+                    </button>
+                    <button type="button" className="mode-type" aria-pressed={typing} disabled={busy || phase === "stalled" || phase === "failed"} onClick={switchToTyping}>
+                      {Icon.keyboard}
+                      Type
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {typing ? (
@@ -701,7 +727,7 @@ export function Interview({
                         ? "Listen, then reply out loud."
                         : closing
                           ? "Ask your question out loud."
-                          : 'Start speaking. You can ask a question back, or say "can you repeat the question?"'}
+                          : 'Start speaking, or switch to Type. You can ask a question back, or say "can you repeat the question?"'}
                     </span>
                   )}
                 </p>
@@ -772,11 +798,6 @@ export function Interview({
                     {phase === "paused" ? Icon.play : Icon.pause}
                   </button>
                 )}
-                {!typing && answering ? (
-                  <button type="button" className="link-btn" onClick={switchToTyping}>
-                    Type instead
-                  </button>
-                ) : null}
                 {!typing ? (
                   <button
                     type="button"

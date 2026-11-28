@@ -12,11 +12,14 @@ run entirely on your own computer.
 
 **[Try it in your browser →](https://utsabpant.com/interview-coach/)**
 
-![The interviewer answers a clarifying question, then probes further](docs/screenshots/conversation.png)
+![Mid-interview: Callback is listening and transcribing a spoken answer, with a Speak / Type switch beside the timer](docs/screenshots/conversation.png)
+
+*Answer out loud or by typing. Switch between the two at any point, even mid-answer.*
 
 ## Why Callback
 
 - **A real conversation.** The interviewer reacts to what you say, answers your clarifying questions, pushes back on vague claims, and moves on when a topic is covered. You talk; your words are transcribed as you speak.
+- **Speak or type.** Answer out loud, or flip the switch to Type when you are somewhere quiet or have no microphone. What you have said so far carries over, and you can switch back.
 - **It listens.** Stop talking and the interviewer takes its turn, with no button to press. Say "can you repeat the question?" or "could you rephrase that?" and it does.
 - **Interviews the way they are run now.** Questions are practical and close to the job: project deep dives, production incidents, reviewing AI-generated code, designing AI-powered features, and how you work with AI tools. No brainteasers, trivia, or "greatest weakness".
 - **Your turn to ask.** Each round ends with your questions for the interviewer, and those are scored too.

@@ -5,6 +5,8 @@ Notable changes, newest first.
 ## Unreleased
 
 ### Added
+- **Speak / Type switch** in the answer card. It works both ways and keeps what you have said or
+  typed so far. It replaces the one-way "Type instead" link.
 - **Guardrails:** conduct rules on every model request, checks that withhold insulting or improper
   interviewer replies and questions about protected topics, calm handling of a candidate who
   swears, and a pause with support information when a candidate seems to be in distress.

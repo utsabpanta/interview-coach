@@ -197,7 +197,7 @@ export function App() {
           }}
           onOpenSettings={() => setDialog({})}
           preferTyping={preferTyping}
-          onPreferTyping={() => setPreferTyping(true)}
+          onPreferTyping={setPreferTyping}
         />
       ) : stage === "feedback" && round ? (
         <Feedback session={session} round={round} onRetry={retry} onNext={() => goTo(session, session.index + 1)} onFinish={() => finish(session)} />
