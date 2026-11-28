@@ -32,6 +32,9 @@ export function recognitionSupported(): boolean {
   return typeof window !== "undefined" && recognitionCtor() !== null;
 }
 
+// Consecutive failed sessions, with nothing heard between them, before giving up on voice.
+const MAX_FAILURES = 5;
+
 export interface Recognizer {
   start(): void;
   stop(): void;
@@ -55,6 +58,36 @@ export function createRecognizer(
   let finalText = initial.trim();
   let lastSegment = "";
   let rec: Recognition | null = null;
+  // Browsers end a dictation session after about a minute, and sessions also
+  // fail for passing reasons. Each is restarted; only a run of failures with
+  // nothing heard in between means dictation really is unavailable.
+  let failures = 0;
+  let retry = 0;
+
+  const giveUp = (reason: string) => {
+    wanted = false;
+    window.clearTimeout(retry);
+    onBlocked(reason);
+  };
+
+  const restart = () => {
+    window.clearTimeout(retry);
+    if (!wanted) return;
+    if (failures >= MAX_FAILURES) {
+      giveUp("Speech recognition keeps stopping. Type your answer instead; what you said so far is kept.");
+      return;
+    }
+    // Back off a little more after each failure, so a brief outage can pass.
+    retry = window.setTimeout(() => {
+      if (!wanted) return;
+      try {
+        begin();
+      } catch {
+        failures += 1;
+        restart();
+      }
+    }, failures === 0 ? 0 : Math.min(2000, 250 * 2 ** failures));
+  };
 
   const begin = () => {
     const current = new Ctor();
@@ -63,6 +96,8 @@ export function createRecognizer(
     rec.interimResults = true;
     rec.lang = "en-US";
     rec.onresult = (e) => {
+      // Hearing anything proves dictation is working again.
+      failures = 0;
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const text = e.results[i][0].transcript;
@@ -74,26 +109,19 @@ export function createRecognizer(
       onText(finalText, interim.trim(), lastSegment);
     };
     rec.onerror = (e) => {
+      if (rec !== current) return;
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        wanted = false;
-        onBlocked("Microphone access was blocked. Allow it in your browser, or type your answer.");
+        giveUp("Microphone access was blocked. Allow it in your browser, or type your answer.");
       } else if (e.error === "audio-capture") {
-        wanted = false;
-        onBlocked("No microphone was found. Type your answer instead.");
-      } else if (e.error === "network") {
-        wanted = false;
-        onBlocked("Speech recognition is unavailable right now. Type your answer instead.");
+        giveUp("No microphone was found. Type your answer instead.");
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        // "network" and similar errors are usually momentary; count them and let `onend` restart.
+        failures += 1;
       }
     };
     rec.onend = () => {
       // Only the newest instance may restart, so pause/resume cannot double up.
-      if (wanted && rec === current) {
-        try {
-          begin();
-        } catch {
-          wanted = false;
-        }
-      }
+      if (wanted && rec === current) restart();
     };
     rec.start();
   };
@@ -102,15 +130,17 @@ export function createRecognizer(
     start() {
       if (wanted) return;
       wanted = true;
+      failures = 0;
       try {
         begin();
       } catch {
-        wanted = false;
-        onBlocked("Speech recognition could not start. Type your answer instead.");
+        failures += 1;
+        restart();
       }
     },
     stop() {
       wanted = false;
+      window.clearTimeout(retry);
       try {
         rec?.stop();
       } catch {

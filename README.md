@@ -91,6 +91,12 @@ give rougher feedback, the first load is a large download, and it needs WebGPU, 
 older computers may not have. If it does not work for you, a free Groq key is the next easiest
 option.
 
+**Free-tier limits.** Free tiers cap requests and words per minute. When a limit is hit
+mid-interview, Callback waits as long as the provider asks, shows a short notice, and carries on;
+nothing is lost. A daily quota cannot be waited out, so the app says so and you can switch
+provider in Settings. Very long job postings and resumes are trimmed before they are sent, which
+keeps each request small.
+
 **Which model?** Feedback quality depends on the model. Larger models give sharper, more specific
 feedback; small local models are usable but looser, and may be slow without a GPU. One interview
 makes roughly 15 to 25 model calls, one for each interviewer reply and each score, which matters

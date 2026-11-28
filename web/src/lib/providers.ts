@@ -103,9 +103,22 @@ export function missing(s: Settings): string | null {
   return null;
 }
 
+const waitListeners = new Set<(seconds: number) => void>();
+
+/** Called when the model provider asks for a pause before it will answer (a per-minute limit). */
+export function onProviderWait(listener: (seconds: number) => void): () => void {
+  waitListeners.add(listener);
+  return () => void waitListeners.delete(listener);
+}
+
 export function makeLLM(s: Settings): LLM | null {
   if (missing(s)) return null;
   if (s.provider === "anthropic") return new BrowserLLM(activeKey(s), activeModel(s));
   if (s.provider === "ondevice") return new OnDeviceLLM(activeModel(s));
-  return new OpenAICompatLLM({ baseUrl: activeBaseUrl(s), apiKey: activeKey(s) || undefined, model: activeModel(s) });
+  return new OpenAICompatLLM({
+    baseUrl: activeBaseUrl(s),
+    apiKey: activeKey(s) || undefined,
+    model: activeModel(s),
+    onWait: (seconds) => waitListeners.forEach((l) => l(seconds)),
+  });
 }

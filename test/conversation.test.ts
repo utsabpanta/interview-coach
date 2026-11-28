@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closingTopic, COMPETENCIES, evaluate, interviewerTurn, planInterview, ROUND_SHAPE, type PlannedQuestion } from "../src/coach.js";
+import { clip, closingTopic, COMPETENCIES, evaluate, interviewerTurn, planInterview, ROUND_SHAPE, type PlannedQuestion } from "../src/coach.js";
 import type { LLM, ToolSpec } from "../src/types.js";
 
 /** Records prompts and replays canned structured replies by tool name. */
@@ -103,5 +103,29 @@ describe("evaluating a conversation", () => {
     const { llm, prompts } = scripted({ answer_feedback: FEEDBACK });
     await evaluate(llm, { type: "behavioral" }, exchanges, undefined, undefined, closingTopic());
     expect(prompts.answer_feedback).toContain("Evaluate the candidate's questions, not answers");
+  });
+});
+
+describe("keeping requests small", () => {
+  const posting = `${"We are a fast-growing company with a great culture. ".repeat(200)}`;
+
+  it("cuts long pasted text at a sentence and says so", () => {
+    const out = clip(posting, 500);
+    expect(out.length).toBeLessThan(540);
+    expect(out.endsWith("[...cut for length]")).toBe(true);
+    expect(out).toMatch(/culture\.\n\[\.\.\.cut for length\]$/);
+    expect(clip("short", 500)).toBe("short");
+  });
+
+  it("sends the interviewer only the gist of the posting mid-conversation", async () => {
+    const plan = scripted({ interview_plan: { role: "r", intro: "", questions: [{ question: "Q?", competency: "ownership" }] } });
+    await planInterview(plan.llm, { type: "behavioral", jobDescription: posting }, 1);
+    const turn = scripted({ interviewer_reply: { reply: "And then?", move_on: false, candidate_asked_only: false } });
+    await interviewerTurn(turn.llm, { type: "behavioral", jobDescription: posting }, topic, exchanges, 2);
+
+    // Planning sees much more of the posting than each live reply does.
+    expect(plan.prompts.interview_plan.length).toBeGreaterThan(6000);
+    expect(turn.prompts.interviewer_reply.length).toBeLessThan(4500);
+    expect(turn.prompts.interviewer_reply).toContain("[...cut for length]");
   });
 });

@@ -143,10 +143,25 @@ Be specific: point at the exact part of the answer you mean. Do not flatter. Nev
 metrics, or experiences the candidate did not state; where a detail is missing, say what to add
 and mark the spot in a rewrite with a bracketed placeholder such as [metric].`;
 
-function contextBlock(ctx: Context): string {
+/** Cuts very long pasted text at a paragraph or sentence, and says that it was cut. */
+export function clip(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const head = t.slice(0, max);
+  const at = Math.max(head.lastIndexOf("\n"), head.lastIndexOf(". "));
+  return `${head.slice(0, at > max * 0.6 ? at + 1 : max).trim()}\n[...cut for length]`;
+}
+
+// Enough to plan and score from. Postings and resumes are often pasted with
+// pages of boilerplate, and free model tiers cap the words sent per minute.
+const FULL_CONTEXT = 6000;
+// Mid-conversation, the interviewer only needs the gist: it replies many times a minute.
+const BRIEF_CONTEXT = 1800;
+
+function contextBlock(ctx: Context, limit = FULL_CONTEXT): string {
   const parts = [`Interview type: ${ctx.type}`];
-  if (ctx.jobDescription) parts.push(`<job_description>\n${ctx.jobDescription}\n</job_description>`);
-  if (ctx.resume) parts.push(`<resume>\n${ctx.resume}\n</resume>`);
+  if (ctx.jobDescription) parts.push(`<job_description>\n${clip(ctx.jobDescription, limit)}\n</job_description>`);
+  if (ctx.resume) parts.push(`<resume>\n${clip(ctx.resume, limit)}\n</resume>`);
   if (ctx.stories) parts.push(`<story_bank>\n${ctx.stories}\n</story_bank>`);
   if (ctx.workspace?.trim()) {
     parts.push(
@@ -339,7 +354,7 @@ close the interview warmly in one sentence.`
 - When the topic is covered, or no turns remain, set move_on to true and reply with a short closing
   remark only, with no question in it.`;
 
-  const user = `${contextBlock(ctx)}
+  const user = `${contextBlock(ctx, BRIEF_CONTEXT)}
 
 You are assessing: ${topic.competency}
 

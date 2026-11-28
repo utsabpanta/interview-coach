@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EvaluationError, normalizeFeedback, normalizePlan } from "../src/coach.js";
-import { extractJson, listModels, OpenAICompatLLM, ProviderError, stripThinking } from "../src/openai.js";
+import { extractJson, listModels, OpenAICompatLLM, ProviderError, retryDelay, stripThinking } from "../src/openai.js";
 
 const TOOL = { name: "answer_feedback", description: "Record feedback.", schema: { type: "object" } };
 
@@ -11,7 +11,7 @@ interface Call {
 }
 
 /** A fetch stand-in that replays canned responses and records what was sent. */
-function fakeFetch(responses: Array<{ status?: number; json: unknown }>) {
+function fakeFetch(responses: Array<{ status?: number; json: unknown; headers?: Record<string, string> }>) {
   const calls: Call[] = [];
   const impl = (async (url: RequestInfo | URL, init?: RequestInit) => {
     calls.push({
@@ -20,7 +20,7 @@ function fakeFetch(responses: Array<{ status?: number; json: unknown }>) {
       body: init?.body ? JSON.parse(String(init.body)) : {},
     });
     const next = responses[Math.min(calls.length - 1, responses.length - 1)];
-    return new Response(JSON.stringify(next.json), { status: next.status ?? 200 });
+    return new Response(JSON.stringify(next.json), { status: next.status ?? 200, headers: next.headers });
   }) as typeof fetch;
   return { impl, calls };
 }
@@ -71,13 +71,69 @@ describe("OpenAICompatLLM", () => {
     expect(calls[1].body.messages[1].content).toContain('{"type":"object"}');
   });
 
-  it("does not retry on authentication or rate-limit errors", async () => {
-    for (const status of [401, 429]) {
-      const { impl, calls } = fakeFetch([{ status, json: { error: { message: "nope" } } }]);
-      const llm = new OpenAICompatLLM({ baseUrl: "https://x/v1", model: "m", fetchImpl: impl });
-      await expect(llm.structured("s", "u", TOOL)).rejects.toMatchObject({ status, message: "nope" });
-      expect(calls).toHaveLength(1);
+  it("does not retry on authentication errors", async () => {
+    const { impl, calls } = fakeFetch([{ status: 401, json: { error: { message: "nope" } } }]);
+    const llm = new OpenAICompatLLM({ baseUrl: "https://x/v1", model: "m", fetchImpl: impl });
+    await expect(llm.structured("s", "u", TOOL)).rejects.toMatchObject({ status: 401, message: "nope" });
+    expect(calls).toHaveLength(1);
+  });
+
+  describe("when the provider says to slow down", () => {
+    const limited = (message: string, headers: Record<string, string> = {}) => ({ status: 429, json: { error: { message } }, headers });
+
+    function setup(responses: Parameters<typeof fakeFetch>[0]) {
+      const { impl, calls } = fakeFetch(responses);
+      const slept: number[] = [];
+      const waits: number[] = [];
+      const llm = new OpenAICompatLLM({
+        baseUrl: "https://x/v1",
+        model: "m",
+        fetchImpl: impl,
+        sleep: async (ms) => void slept.push(ms),
+        onWait: (seconds) => void waits.push(seconds),
+      });
+      return { llm, calls, slept, waits };
     }
+
+    it("waits as long as it was told to, then carries on", async () => {
+      const { llm, calls, slept, waits } = setup([
+        limited("Rate limit reached for model m on tokens per minute (TPM). Please try again in 7.66s."),
+        limited("Slow down.", { "retry-after": "2" }),
+        reply({ content: "And then?" }),
+      ]);
+      expect(await llm.text("s", "u")).toBe("And then?");
+      expect(calls).toHaveLength(3);
+      expect(slept).toEqual([7910, 2250]);
+      expect(waits).toEqual([8, 3]);
+    });
+
+    it("gives up on a daily quota at once, with the provider's message", async () => {
+      const { llm, calls, slept } = setup([limited("Rate limit reached: requests per day (RPD) exceeded. Daily quota exhausted.")]);
+      await expect(llm.text("s", "u")).rejects.toMatchObject({ status: 429 });
+      expect(calls).toHaveLength(1);
+      expect(slept).toEqual([]);
+    });
+
+    it("does not hang on a wait of minutes", async () => {
+      const { llm, calls } = setup([limited("Please try again in 6m12s.")]);
+      await expect(llm.text("s", "u")).rejects.toMatchObject({ status: 429 });
+      expect(calls).toHaveLength(1);
+    });
+
+    it("stops after a few attempts if the limit never lifts", async () => {
+      const { llm, calls } = setup([limited("Too many requests.")]);
+      await expect(llm.text("s", "u")).rejects.toMatchObject({ status: 429 });
+      expect(calls).toHaveLength(5);
+    });
+
+    it("reads the wait from a header or the message", () => {
+      const res = (h: Record<string, string> = {}) => ({ headers: { get: (k: string) => h[k] ?? null } });
+      expect(retryDelay(res({ "retry-after": "3" }), "")).toBe(3250);
+      expect(retryDelay(res(), "Please try again in 840ms.")).toBe(1090);
+      expect(retryDelay(res(), "Please try again in 1m2s.")).toBeNull();
+      expect(retryDelay(res(), "no hint")).toBe(5250);
+      expect(retryDelay(res(), "You exceeded your current quota, please check your plan and billing details.")).toBeNull();
+    });
   });
 
   it("reports an unreachable server by address", async () => {

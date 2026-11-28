@@ -12,6 +12,31 @@ export interface OpenAIOptions {
   apiKey?: string;
   model: string;
   fetchImpl?: typeof fetch;
+  /** Called with the number of seconds before a retry, when the provider asks for a pause. */
+  onWait?: (seconds: number) => void;
+  /** Replaces the real delay in tests. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const MAX_ATTEMPTS = 5;
+const MAX_TOTAL_WAIT_MS = 75_000;
+
+/**
+ * How long the provider asked us to wait: the Retry-After header, or a hint in
+ * the message such as "try again in 7.6s". Null when it is a daily or monthly
+ * quota, which no short wait will fix.
+ */
+export function retryDelay(res: { headers: { get(name: string): string | null } }, message: string): number | null {
+  if (/per day|daily|per month|monthly|quota exceeded|billing|insufficient/i.test(message) && !/per minute|try again in/i.test(message)) return null;
+  const header = Number(res.headers.get("retry-after"));
+  let seconds = Number.isFinite(header) && header > 0 ? header : NaN;
+  if (Number.isNaN(seconds)) {
+    const m = /try again in\s+(?:(\d+)m)?\s*([\d.]+)\s*(ms|s)?/i.exec(message);
+    if (m) seconds = Number(m[1] ?? 0) * 60 + (m[3] === "ms" ? Number(m[2]) / 1000 : Number(m[2]));
+  }
+  if (Number.isNaN(seconds)) seconds = 5;
+  // A wait of minutes means a quota, not a burst limit: report it instead of hanging.
+  return seconds > 45 ? null : Math.max(1000, Math.ceil(seconds * 1000) + 250);
 }
 
 export class ProviderError extends Error {
@@ -79,18 +104,31 @@ export class OpenAICompatLLM implements LLM {
   }
 
   private async chat(body: Record<string, unknown>): Promise<ChatResponse> {
-    let res: Response;
-    try {
-      res = await this.fetchImpl(`${trimSlash(this.opts.baseUrl)}/chat/completions`, {
-        method: "POST",
-        headers: headers(this.opts.apiKey),
-        body: JSON.stringify({ model: this.opts.model, ...body }),
-      });
-    } catch {
-      throw new ProviderError(`Could not reach the model provider at ${this.opts.baseUrl}.`);
+    const sleep = this.opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+    let waited = 0;
+    for (let attempt = 1; ; attempt++) {
+      let res: Response;
+      try {
+        res = await this.fetchImpl(`${trimSlash(this.opts.baseUrl)}/chat/completions`, {
+          method: "POST",
+          headers: headers(this.opts.apiKey),
+          body: JSON.stringify({ model: this.opts.model, ...body }),
+        });
+      } catch {
+        throw new ProviderError(`Could not reach the model provider at ${this.opts.baseUrl}.`);
+      }
+      if (res.ok) return (await res.json()) as ChatResponse;
+
+      const error = await failure(res);
+      // Free tiers limit requests and tokens per minute. Being told to slow down
+      // is routine in a live conversation, so wait as asked and carry on.
+      const busy = res.status === 429 || res.status === 503;
+      const wait = busy ? retryDelay(res, error.message) : null;
+      if (wait === null || attempt >= MAX_ATTEMPTS || waited + wait > MAX_TOTAL_WAIT_MS) throw error;
+      this.opts.onWait?.(Math.ceil(wait / 1000));
+      await sleep(wait);
+      waited += wait;
     }
-    if (!res.ok) throw await failure(res);
-    return (await res.json()) as ChatResponse;
   }
 
   async text(system: string, user: string, maxTokens = 2000): Promise<string> {

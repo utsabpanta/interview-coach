@@ -25,6 +25,10 @@ Notable changes, newest first.
 ### Fixed
 - Answers were sent or discarded without the candidate meaning it: after pausing, after "Hear it
   again", when an answer resembled "repeat the question", and when a story ended like a sign-off.
+- Voice stopped about a minute into an answer: when the browser ended a dictation session, a
+  failed or interrupted restart silently stopped listening, or switched to typing for good.
+- A free tier's per-minute limit ended the conversation; the app now waits and carries on.
+- A crash left a blank page; it now shows what happened and how to report it.
 - Unusable model output became a plausible score instead of an error.
 - Quotes could be attributed to the candidate that they never said.
 

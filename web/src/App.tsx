@@ -5,7 +5,7 @@ import { SettingsDialog } from "./components.js";
 import { explainError } from "./lib/llm.js";
 import { onLoadProgress, type LoadProgress } from "./lib/localLlm.js";
 import { findPack } from "./lib/packs.js";
-import { makeLLM, missing } from "./lib/providers.js";
+import { makeLLM, missing, onProviderWait } from "./lib/providers.js";
 import { MockLLM } from "./lib/mockLlm.js";
 import { answered, previousReadiness, summarize } from "./lib/score.js";
 import { clearHistory, loadHistory, loadSettings, saveSettings, saveToHistory } from "./lib/store.js";
@@ -36,6 +36,20 @@ export function App() {
   /** Download progress of the on-device model, while it is loading. */
   const [loading, setLoading] = useState<LoadProgress | null>(null);
   useEffect(() => onLoadProgress(setLoading), []);
+  /** Set while waiting out a provider's per-minute limit. */
+  const [waiting, setWaiting] = useState<number | null>(null);
+  useEffect(() => {
+    let timer = 0;
+    const stop = onProviderWait((seconds) => {
+      setWaiting(seconds);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setWaiting(null), seconds * 1000 + 500);
+    });
+    return () => {
+      stop();
+      window.clearTimeout(timer);
+    };
+  }, []);
   /** Once someone chooses to type, keep typing for the rest of the interview. */
   const [preferTyping, setPreferTyping] = useState(false);
 
@@ -205,6 +219,14 @@ export function App() {
           <div className="load-fill" style={{ width: `${Math.round(loading.progress * 100)}%` }} />
           <p>
             Preparing the on-device model ({Math.round(loading.progress * 100)}%). The first time is a large download; keep this tab open.
+          </p>
+        </div>
+      ) : null}
+
+      {waiting !== null && !loading ? (
+        <div className="load-bar" role="status">
+          <p>
+            Your model provider's free limit was reached for the moment. Carrying on automatically in about {waiting} seconds; nothing is lost.
           </p>
         </div>
       ) : null}
