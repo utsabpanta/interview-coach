@@ -23,6 +23,7 @@ export const GROQ_TTS_URL = "https://api.groq.com/openai/v1/audio/speech";
 export const GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english";
 export const GROQ_VOICES: Array<[id: string, label: string]> = [
   ["hannah", "Hannah"],
+  ["autumn", "Autumn"],
   ["diana", "Diana"],
   ["austin", "Austin"],
   ["daniel", "Daniel"],
@@ -36,6 +37,7 @@ export interface SpeakOptions {
   onFallback?: (reason: string) => void;
 }
 
+// Groq's speech model accepts at most 200 characters per request.
 const MAX_CHUNK = 180;
 
 /**
@@ -107,6 +109,30 @@ function chosenVoice(uri: string | undefined): SpeechSynthesisVoice | null {
   return voices.find((v) => v.voiceURI === uri) ?? voices[0] ?? null;
 }
 
+/**
+ * Browsers load their voice list in the background. Speaking before it has
+ * arrived uses the default voice, which is usually the most robotic one, so
+ * the list is requested as early as possible and briefly waited for.
+ */
+function voicesReady(timeoutMs = 700): Promise<void> {
+  const synth = window.speechSynthesis;
+  if ((synth.getVoices?.() ?? []).length > 0 || !synth.addEventListener) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      window.clearTimeout(timer);
+      synth.removeEventListener?.("voiceschanged", done);
+      resolve();
+    };
+    const timer = window.setTimeout(done, timeoutMs);
+    synth.addEventListener("voiceschanged", done);
+  });
+}
+
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  // Ask for the list at load, long before the first question is spoken.
+  window.speechSynthesis.getVoices?.();
+}
+
 function speakWithBrowser(chunks: string[], onEnd: () => void, voiceURI?: string): () => void {
   if (typeof window === "undefined" || !("speechSynthesis" in window) || chunks.length === 0) {
     onEnd();
@@ -122,20 +148,32 @@ function speakWithBrowser(chunks: string[], onEnd: () => void, voiceURI?: string
   };
   // Some browsers never fire `end`; do not leave the interview stuck.
   const guard = window.setTimeout(finish, 5000 + total * 100);
-  const voice = chosenVoice(voiceURI);
   window.speechSynthesis.cancel();
-  chunks.forEach((chunk, i) => {
-    const utterance = new SpeechSynthesisUtterance(chunk);
-    if (voice) {
-      utterance.voice = voice;
-      utterance.lang = voice.lang;
+  void voicesReady().then(() => {
+    if (finished) return;
+    try {
+      const voice = chosenVoice(voiceURI);
+      chunks.forEach((chunk, i) => {
+        const utterance = new SpeechSynthesisUtterance(chunk);
+        if (voice) {
+          utterance.lang = voice.lang;
+          try {
+            utterance.voice = voice;
+          } catch {
+            // Keep the default voice if the browser rejects this one.
+          }
+        }
+        // Slightly under full speed sounds less mechanical on most voices.
+        utterance.rate = 0.96;
+        utterance.pitch = 1;
+        if (i === chunks.length - 1) utterance.onend = finish;
+        utterance.onerror = finish;
+        window.speechSynthesis.speak(utterance);
+      });
+    } catch {
+      // Never leave the interview waiting on speech that could not start.
+      finish();
     }
-    // Slightly under full speed sounds less mechanical on most voices.
-    utterance.rate = 0.96;
-    utterance.pitch = 1;
-    if (i === chunks.length - 1) utterance.onend = finish;
-    utterance.onerror = finish;
-    window.speechSynthesis.speak(utterance);
   });
   return () => {
     finished = true;
