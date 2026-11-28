@@ -1,6 +1,7 @@
 # Callback
 
 [![Test and deploy](https://github.com/utsabpanta/interview-coach/actions/workflows/pages.yml/badge.svg)](https://github.com/utsabpanta/interview-coach/actions/workflows/pages.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-b8f35a.svg)](LICENSE)
 
 **Paste a job posting. Be in the interview in 60 seconds.**
 
@@ -187,3 +188,7 @@ If Callback helped you prepare, a star helps other people find it.
 - An in-browser model option that needs no key and no install.
 - A hosted demo that needs no API key.
 - Daily drill reminders and progress over time.
+
+## License
+
+[MIT](LICENSE). Use it, change it, and ship it, as long as the license notice stays with the code.

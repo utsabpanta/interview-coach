@@ -1,6 +1,7 @@
 {
   "name": "interview-coach",
   "version": "0.2.0",
+  "license": "MIT",
   "description": "An AI interview coach for the terminal: mock interviews, scored feedback, and a story bank built from your resume.",
   "type": "module",
   "bin": {
