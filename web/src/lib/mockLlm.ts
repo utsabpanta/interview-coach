@@ -1,5 +1,12 @@
-import { COMPETENCIES, type Feedback, type InterviewPlan } from "../../../src/coach.js";
+import type { Feedback, InterviewPlan } from "../../../src/coach.js";
 import type { LLM, ToolSpec } from "../../../src/types.js";
+
+const SAMPLE: Array<[competency: string, question: string]> = [
+  ["ownership", "Walk me through a recent project you owned end to end. What did you build, and which decisions were yours?"],
+  ["ai-collaboration", "Tell me about a recent piece of work where an AI tool did part of it. What did you check, and what did you not trust it with?"],
+  ["conflict", "Tell me about a time you disagreed with a teammate on a technical direction. How did it get resolved?"],
+  ["failure", "Describe something you shipped that went wrong in production. What did you do in the first hour?"],
+];
 
 /**
  * A scripted stand-in for the model, used only by the dev server (`?mock=1`)
@@ -20,8 +27,8 @@ export class MockLLM implements LLM {
         role: "Senior Backend Engineer",
         intro: "Hi, I'm the hiring manager for this role. We'll talk through a few topics and leave time for your questions.",
         questions: Array.from({ length: count }, (_, i) => ({
-          question: `Mock question ${i + 1}: tell me about a project you owned that went off the rails.`,
-          competency: drill ?? COMPETENCIES.behavioral[i % COMPETENCIES.behavioral.length],
+          question: drill ? `${SAMPLE[i % SAMPLE.length][1]}` : SAMPLE[i % SAMPLE.length][1],
+          competency: drill ?? SAMPLE[i % SAMPLE.length][0],
         })),
       };
       return plan as T;
@@ -29,7 +36,7 @@ export class MockLLM implements LLM {
     if (tool.name === "interviewer_reply") {
       const turns = (user.match(/^Candidate:/gm) ?? []).length;
       const asked = /Candidate: [^\n]*\?\s*$/m.test(user);
-      const reply = { reply: `${asked ? "Good question. Let's say about a million users. " : ""}What was your own part in that decision?`, move_on: false };
+      const reply = { reply: `${asked ? "Fair question. Let's say about two million monthly users. " : "Got it. "}Which of those decisions was yours alone, and what did it cost you?`, move_on: false };
       return (turns >= 2 ? { reply: "Thanks, that gives me a clear picture.", move_on: true } : reply) as T;
     }
     const retry = user.includes("This is a retry");

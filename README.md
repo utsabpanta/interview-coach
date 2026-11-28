@@ -1,10 +1,19 @@
 # Callback
 
+[![Test and deploy](https://github.com/utsabpanta/interview-coach/actions/workflows/pages.yml/badge.svg)](https://github.com/utsabpanta/interview-coach/actions/workflows/pages.yml)
+
 **Paste a job posting. Be in the interview in 60 seconds.**
 
 Callback is an open-source app for spoken interview practice. It reads a job posting, holds a
 two-way interview with you out loud for that exact role, and after every topic gives you the one
-thing to fix and a second attempt to prove it.
+thing to fix and a second attempt to prove it. It is free to use with open models, needs no
+signup, and has no server.
+
+**[Try it in your browser →](https://utsabpant.com/interview-coach/)**
+
+![The interviewer answers a clarifying question, then probes further](docs/screenshots/conversation.png)
+
+## Why Callback
 
 - **A real conversation.** The interviewer reacts to what you say, answers your clarifying questions, pushes back on vague claims, and moves on when a topic is covered. You talk; your words are transcribed as you speak.
 - **Interviews the way they are run now.** Questions are practical and close to the job: project deep dives, production incidents, reviewing AI-generated code, designing AI-powered features, and how you work with AI tools. No brainteasers, trivia, or "greatest weakness".
@@ -14,7 +23,21 @@ thing to fix and a second attempt to prove it.
 - **Free and open models.** Use a free hosted tier (Groq, Google Gemini, OpenRouter), a model running on your own computer (Ollama, LM Studio), or Claude.
 - **No signup and no server.** The app is a static site. It runs in your browser and talks straight to the model provider you choose; your history never leaves that browser.
 
-## Run it
+| Start from a job posting | Fix one thing, then retry | See where you stand |
+| --- | --- | --- |
+| ![Start screen](docs/screenshots/start.png) | ![Feedback with a before-and-after comparison](docs/screenshots/feedback.png) | ![Scorecard with a readiness score](docs/screenshots/scorecard.png) |
+
+Screenshots show the built-in sample data, not output from a real model.
+
+## Quick start
+
+1. Open **[utsabpant.com/interview-coach](https://utsabpant.com/interview-coach/)** in Chrome, Edge, or Safari.
+2. Get a free API key from [Groq](https://console.groq.com/keys) (no credit card), or pick another provider.
+3. Paste a job description, press **Start interview**, and enter the key when asked.
+
+Prefer to keep everything on your machine? Run it locally with [Ollama](#model-providers).
+
+## Run it locally
 
 Requires Node.js 20 or later.
 
@@ -148,6 +171,14 @@ web/
   src/lib/           providers, speech, scoring, storage, share card
 docs/cli.md          command-line documentation
 ```
+
+## Contributing
+
+Contributions are welcome, especially better interview guidance for specific roles, support for
+more languages, and fixes for browsers or model providers that misbehave. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to set up, test, and send a change.
+
+If Callback helped you prepare, a star helps other people find it.
 
 ## Roadmap
 

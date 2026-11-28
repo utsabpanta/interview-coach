@@ -84,5 +84,6 @@ export function clock(seconds: number): string {
 }
 
 export function titleCase(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1).replace(/-/g, " ");
+  const spaced = text.replace(/-/g, " ");
+  return (spaced.charAt(0).toUpperCase() + spaced.slice(1)).replace(/\bai\b/gi, "AI");
 }
